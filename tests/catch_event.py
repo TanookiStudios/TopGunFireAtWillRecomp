@@ -5,6 +5,8 @@ before and just after it (for notes/ram-map.md work).
     tests/catch_event.py <route.txt> <out-dir> x0 y0 x1 y1 [max-seconds] [events]
 
 events (default 1): how many jumps to catch; each saves beforeN/afterN.
+TGFAW_WTRACE=lo-hi (hex): also log every game write in that range and, at
+each jump, save the writes from the frames around it to writesN.json.
 
 Plays the route, then keeps snapshotting: screenshot + full RAM every few
 frames. Inside the rectangle (320x240 picture coordinates) it counts warm
@@ -80,6 +82,11 @@ def main():
     os.makedirs(out, exist_ok=True)
     psx_tcp.route(route, out, keep_running=True)
     g = psx_tcp.LAST_GAME
+    wt = os.environ.get("TGFAW_WTRACE")
+    if wt:
+        lo, hi = wt.split("-")
+        g.cmd("wtrace_range", lo=lo, hi=hi)
+        g.cmd("wtrace_clear")
     try:
         prev_png, prev_ram, base, t0, k = None, None, None, time.time(), 0
         while time.time() - t0 < limit:
@@ -100,7 +107,18 @@ def main():
                 open(os.path.join(out, f"after{sfx}.ram"), "wb").write(ram)
                 os.replace(prev_png, os.path.join(out, f"before{sfx}.png"))
                 os.replace(png, os.path.join(out, f"after{sfx}.png"))
-                print(f"caught at frame {g.frame()}: warm pixels {base} -> {n}")
+                fr = g.frame()
+                print(f"caught at frame {fr}: warm pixels {base} -> {n}")
+                if wt:
+                    import json
+                    lo, hi = (int(v, 16) for v in wt.split("-"))
+                    allw = []
+                    for a in range(lo, hi, 0x400):   # the dump returns at most 2048 per call
+                        d = g.cmd("wtrace_dump", addr_lo=f"0x{a:08X}", addr_hi=f"0x{a + 0x3FF:08X}",
+                                  count=2048, newest=1)
+                        allw += d.get("entries", [])
+                    json.dump(allw, open(os.path.join(out, f"writes{sfx}.json"), "w"))
+                    print(f"  saved {len(allw)} writes")
                 if caught == events:
                     return
                 base, prev_png, prev_ram = n, None, None

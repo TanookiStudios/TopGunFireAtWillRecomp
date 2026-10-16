@@ -1,0 +1,41 @@
+# Release screenshots (tools/capture-screenshots.sh, hidden window).
+include route_to_title.txt
+wait 60
+pshot gameplay-1
+hold cross 6
+wait 160
+hold cross 6
+wait 160
+hold cross 6
+wait 400
+pshot gameplay-2
+hold cross 6
+wait 160
+hold cross 6
+wait 600
+pshot gameplay-3
+hold r1 4
+wait 30
+hold circle 4
+wait 25
+pshot gameplay-4
+wait 200
+hold select 4
+wait 60
+pshot gameplay-6
+key Escape
+sleep 500
+pshot ingame-menu
+key Escape
+sleep 400
+hold start 6
+wait 60
+hold down 6
+wait 30
+hold cross 6
+wait 60
+hold left 6
+wait 30
+hold cross 6
+wait 1800
+pshot gameplay-7

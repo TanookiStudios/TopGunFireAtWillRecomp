@@ -6,6 +6,21 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 BUILD=$1 ART=$2
+STAGE="dist/stage-game-$ART"
+if [ "$ART" = windows-x64 ]; then
+    # The engine's packager wants MinGW DLLs beside the .exe, but ours is fully
+    # static (cmake/mingw-w64.cmake), so stage the same file set directly.
+    rm -rf "$STAGE"; mkdir -p "$STAGE/bios" "$STAGE/licenses" "$STAGE/saves"
+    cp "$BUILD/TopGunFireAtWill.exe" "$BUILD/game.toml" "$BUILD/game_options.toml" "$BUILD/psx_game_version.txt" "$STAGE/"
+    cp -R "$BUILD/assets" "$BUILD/mods" "$STAGE/"
+    cp "$BUILD/bios/openbios.bin" "$BUILD/bios/OpenBIOS.LICENSE" "$STAGE/bios/"
+    cp vendor/psxrecomp/runtime/licenses/* "$STAGE/licenses/"
+    cp vendor/psxrecomp/LICENSE "$STAGE/licenses/psxrecomp-LICENSE"
+    cp vendor/recomp-ui/LICENSE "$STAGE/licenses/recomp-ui-LICENSE"
+    cp LICENSE THIRD_PARTY_NOTICES.md "$STAGE/"
+    echo "staged $STAGE"
+    exit 0
+fi
 RELEASE_VERSION=$(tr -d '[:space:]' < VERSION) \
 bash vendor/psxrecomp/tools/package_game_release.sh \
     --build-dir "$BUILD" \
@@ -19,6 +34,5 @@ bash vendor/psxrecomp/tools/package_game_release.sh \
     --disc-hint "your own Top Gun: Fire at Will (USA) disc" \
     --stage-only >/dev/null
 # Our own files the engine does not know about.
-STAGE="dist/stage-game-$ART"
 cp LICENSE THIRD_PARTY_NOTICES.md "$STAGE/"
 echo "staged $STAGE"

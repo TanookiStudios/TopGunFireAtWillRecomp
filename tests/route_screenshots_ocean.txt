@@ -1,0 +1,13 @@
+# Release screenshot over the ocean (run with TGFAW_START=5: Miramar 5).
+include route_to_title.txt
+hold cross 6
+wait 160
+hold cross 6
+wait 160
+hold cross 6
+wait 160
+hold cross 6
+wait 160
+hold cross 6
+wait 900
+pshot gameplay-5

@@ -110,6 +110,7 @@ def mask(buttons):
 
 
 def shots(out, seconds=90, every=300):
+    out = os.path.abspath(out)
     os.makedirs(out, exist_ok=True)
     g = Game(os.path.join(out, "run.log"))
     t0, k = time.time(), 0
@@ -151,6 +152,7 @@ LAST_GAME = None
 
 
 def route(path, out, window=False, keep_running=False):
+    out = os.path.abspath(out)   # the game's working folder is build-test/
     """Every hold/wait is queued up front in the runtime's input route, which
     counts the game's own pad reads, so inputs land on the same game frame in
     every run. Captures (shot, ram, ...) run as the route reaches them, a

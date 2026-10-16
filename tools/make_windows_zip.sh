@@ -14,7 +14,7 @@ OBJDUMP=x86_64-w64-mingw32-objdump
 cmake -S . -B build-win -G Ninja -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-w64.cmake \
     -DCMAKE_DISABLE_FIND_PACKAGE_SDL3=ON -DPSXRECOMP_REQUIRE_GAME_C=ON >/dev/null
-cmake --build build-win --parallel 8 >/dev/null
+cmake --build build-win --parallel 8 > work/build-win.log 2>&1 || { grep -E "error|FAILED" work/build-win.log | head -20 >&2; exit 1; }
 
 bash tools/stage_release.sh build-win windows-x64
 OUT="dist/TopGunFireAtWill-Windows"
