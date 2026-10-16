@@ -1,0 +1,27 @@
+# Power on, skip the intro movie, look at the title and the menu after it.
+wait 600
+shot 00_intro
+hold start 10
+wait 300
+shot 01_after_start
+hold start 10
+wait 300
+shot 02
+hold cross 10
+wait 300
+shot 03
+hold cross 10
+wait 300
+shot 04
+hold start 10
+wait 300
+shot 05
+hold cross 10
+wait 600
+shot 06
+hold down 8
+wait 60
+shot 07
+hold cross 10
+wait 600
+shot 08

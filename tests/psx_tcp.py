@@ -1,0 +1,148 @@
+#!/usr/bin/env python3
+"""Drive a headless test build over its debug port (needs build-test/, made with
+-DPSX_DEBUG_TOOLS=ON; release builds have no port).
+
+    tests/psx_tcp.py shots <out-dir> [seconds] [every-frames]
+        boot the game headless and save a PNG every N frames
+    tests/psx_tcp.py route <route.txt> <out-dir>
+        boot, play a scripted route, save the shots it asks for
+
+Route file: one step per line, '#' comments.
+    hold <buttons> <frames>     buttons: up down left right cross circle square
+                                triangle l1 l2 r1 r2 start select, joined by '+', or 'none'
+    shot <name>                 PNG of the current frame
+    ram <name>                  full 2 MB main RAM dump (for tools/ram_find.py)
+    wait <frames>               same as 'hold none'
+"""
+import json
+import os
+import socket
+import subprocess
+import sys
+import time
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+EXE = os.path.join(ROOT, "build-test", "TopGunFireAtWill")
+PORT = 4370
+# PS1 pad bits (pressed = 0 in the inverted mask the runtime takes).
+BITS = {"select": 0, "l3": 1, "r3": 2, "start": 3, "up": 4, "right": 5, "down": 6, "left": 7,
+        "l2": 8, "r2": 9, "l1": 10, "r1": 11, "triangle": 12, "circle": 13, "cross": 14, "square": 15}
+
+
+class Game:
+    def __init__(self, log_path):
+        self.proc = subprocess.Popen(
+            [EXE, "--headless", "--debug-port", str(PORT), "--disc", "../disc/topgunfaw.cue"],
+            cwd=os.path.dirname(EXE), stdout=open(log_path, "w"), stderr=subprocess.STDOUT)
+        for _ in range(300):
+            try:
+                socket.create_connection(("127.0.0.1", PORT), timeout=30).close()
+                break
+            except OSError:
+                if self.proc.poll() is not None:
+                    sys.exit(f"game exited early (code {self.proc.returncode}); see {log_path}")
+                time.sleep(0.1)
+        else:
+            self.proc.kill()
+            sys.exit("debug port never opened (is build-test built with -DPSX_DEBUG_TOOLS=ON?)")
+        self.n = 0
+
+    def cmd(self, c, **k):
+        # The server answers one JSON object per request and may close the
+        # connection afterwards, so each command gets its own connection.
+        self.n += 1
+        with socket.create_connection(("127.0.0.1", PORT), timeout=60) as s:
+            s.sendall((json.dumps({"id": self.n, "cmd": c, **k}) + "\n").encode())
+            buf = b""
+            while True:
+                chunk = s.recv(1 << 20)
+                if chunk:
+                    buf += chunk
+                if buf.rstrip().endswith(b"}") or not chunk:
+                    try:
+                        r = json.loads(buf)
+                        break
+                    except ValueError:
+                        if not chunk:
+                            raise RuntimeError(f"{c}: connection closed mid-reply ({len(buf)} bytes)")
+        if not r.get("ok"):
+            raise RuntimeError(f"{c}: {r.get('error')}")
+        return r
+
+    def frame(self):
+        return self.cmd("frame")["frame"]
+
+    def wait_frames(self, n):
+        target = self.frame() + n
+        while self.frame() < target:
+            if self.proc.poll() is not None:
+                sys.exit("game exited during the route")
+            time.sleep(0.01)
+
+    def close(self):
+        try:
+            self.cmd("quit")
+        except Exception:
+            pass
+        try:
+            self.proc.wait(5)
+        except subprocess.TimeoutExpired:
+            self.proc.kill()
+
+
+def mask(buttons):
+    m = 0xFFFF
+    if buttons != "none":
+        for b in buttons.split("+"):
+            m &= ~(1 << BITS[b])
+    return m
+
+
+def shots(out, seconds=90, every=300):
+    os.makedirs(out, exist_ok=True)
+    g = Game(os.path.join(out, "run.log"))
+    t0, k = time.time(), 0
+    try:
+        while time.time() - t0 < seconds:
+            fr = g.frame()
+            if fr >= k * every:
+                g.cmd("screenshot", path=os.path.join(out, f"f{k:03d}_{fr}.png"))
+                k += 1
+            time.sleep(0.2)
+        print(f"reached frame {g.frame()}, {k} shots in {out}")
+    finally:
+        g.close()
+
+
+def route(path, out):
+    os.makedirs(out, exist_ok=True)
+    g = Game(os.path.join(out, "run.log"))
+    try:
+        for line in open(path):
+            w = line.split("#")[0].split()
+            if not w:
+                continue
+            if w[0] in ("hold", "wait"):
+                buttons, n = ("none", int(w[1])) if w[0] == "wait" else (w[1], int(w[2]))
+                g.cmd("set_input", buttons=f"0x{mask(buttons):04X}")  # held until the next step
+                g.wait_frames(n)
+            elif w[0] == "shot":
+                g.cmd("screenshot", path=os.path.join(out, w[1] + ".png"))
+            elif w[0] == "ram":
+                data = bytes.fromhex(g.cmd("read_ram", addr="0x80000000", len=0x200000)["hex"])
+                open(os.path.join(out, w[1] + ".ram"), "wb").write(data)
+            else:
+                sys.exit(f"unknown route step: {line.strip()}")
+        print(f"route done at frame {g.frame()}")
+    finally:
+        g.close()
+
+
+if __name__ == "__main__":
+    a = sys.argv[1:]
+    if a[:1] == ["shots"] and len(a) >= 2:
+        shots(a[1], *(int(x) for x in a[2:4]))
+    elif a[:1] == ["route"] and len(a) == 3:
+        route(a[1], a[2])
+    else:
+        sys.exit(__doc__)

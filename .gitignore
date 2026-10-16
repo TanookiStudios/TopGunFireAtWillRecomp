@@ -1,0 +1,52 @@
+# Nothing made from the game disc is ever committed. That includes the
+# translated C (generated/), overlay captures (they hold game code), the disc,
+# memory cards and the engine checkouts (vendor/, fetched by setup.sh).
+/vendor/
+/psxrecomp
+/generated/
+/disc/
+disc.cfg
+*.bin
+*.BIN
+*.cue
+*.iso
+*.img
+*.chd
+*.mcd
+*.mcr
+*.sub
+*.ccd
+overlay_captures.json
+/overlay_cache/
+/.cache/
+/saves/
+/bios/
+settings.toml
+bios.cfg
+psx_crash.txt
+psx_last_run_report.json
+psx_screenshot.bmp
+psx_freeze_heartbeat.json
+.psxrecomp_last_generate
+.psxrecomp_write_probe
+starvation_dump.jsonl
+
+# Build output
+/build/
+/build-*/
+/work/
+/dist/
+*.zip
+*.state
+*.wav
+*.log
+.DS_Store
+__pycache__/
+
+# Pictures: only our own art and the release screenshots
+*.png
+*.bmp
+*.ppm
+!assets/icon/*.png
+!assets/signature.png
+!docs/screenshots/*.png
