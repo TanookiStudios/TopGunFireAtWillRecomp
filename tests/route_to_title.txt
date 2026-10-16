@@ -1,0 +1,30 @@
+# Power on to the title menu (cursor on START GAME). Frame-exact; include from other routes.
+wait 1400
+hold cross 6
+wait 60
+hold start 6
+wait 60
+hold cross 6
+wait 60
+hold start 6
+wait 60
+hold cross 6
+wait 60
+hold start 6
+wait 60
+hold cross 6
+wait 60
+hold start 6
+wait 60
+hold cross 6
+wait 60
+hold start 6
+wait 60
+hold cross 6
+wait 60
+hold start 6
+wait 60
+hold cross 6
+wait 60
+hold start 6
+wait 60

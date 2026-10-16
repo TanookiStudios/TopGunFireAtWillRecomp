@@ -25,7 +25,7 @@ static const RecompRuntimeUiItem kRows[] = {
     ROW("tgfaw.mute.music",  "Audio", "Mute music", "Silences the music and the movie soundtrack (the disc's own audio)."),
     ROW("tgfaw.mute.sfx",    "Audio", "Mute sound effects", "Silences engines, guns, missiles and radio beeps (all 24 of the PlayStation's sound voices)."),
     ROW("tgfaw.cheat.missiles", "Cheats", "Infinite missiles", "Firing a missile never uses one up."),
-    ROW("tgfaw.cheat.ammo",     "Cheats", "Infinite gun ammo", "The cannon never runs dry."),
+    ROW("tgfaw.cheat.lives",    "Cheats", "Infinite lives", "Getting shot down or crashing never costs a life."),
     ROW("tgfaw.cheat.hit",      "Cheats", "Can't be hit", "Your jet takes no damage."),
 };
 #define ROW_COUNT (sizeof kRows / sizeof kRows[0])
@@ -55,7 +55,7 @@ static int *field(const RecompRuntimeUiItem *it) {
         { "tgfaw.mute.music",     offsetof(TgfawOptions, mute_music) },
         { "tgfaw.mute.sfx",       offsetof(TgfawOptions, mute_sfx) },
         { "tgfaw.cheat.missiles", offsetof(TgfawOptions, inf_missiles) },
-        { "tgfaw.cheat.ammo",     offsetof(TgfawOptions, inf_ammo) },
+        { "tgfaw.cheat.lives",    offsetof(TgfawOptions, inf_lives) },
         { "tgfaw.cheat.hit",      offsetof(TgfawOptions, cant_be_hit) },
     };
     for (size_t i = 0; i < sizeof map / sizeof map[0]; i++)

@@ -1,0 +1,35 @@
+# In mission 1, press each button once and look at the HUD after it.
+include route_to_mission1.txt
+shot b00_before
+ram b00
+hold square 4
+wait 90
+shot b01_square
+ram b01
+hold circle 4
+wait 90
+shot b02_circle
+ram b02
+hold triangle 4
+wait 90
+shot b03_triangle
+ram b03
+hold r1 4
+wait 90
+shot b04_r1
+hold l1 4
+wait 90
+shot b05_l1
+hold r2 4
+wait 90
+shot b06_r2
+hold l2 4
+wait 90
+shot b07_l2
+hold select 4
+wait 90
+shot b08_select
+hold cross 60
+wait 30
+shot b09_cross_held
+ram b09

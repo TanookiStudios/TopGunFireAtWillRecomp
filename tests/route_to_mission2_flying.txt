@@ -1,0 +1,16 @@
+# Mission 2 hands-off until shot down.
+include route_to_debrief1.txt
+hold cross 6
+wait 200
+hold cross 6
+wait 200
+hold cross 6
+wait 200
+hold cross 6
+wait 200
+hold start 6
+wait 200
+hold cross 6
+wait 200
+hold cross 6
+wait 300

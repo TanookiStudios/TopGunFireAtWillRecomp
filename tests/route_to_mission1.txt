@@ -1,0 +1,16 @@
+# Power on to flying in mission 1. Frame-exact; include from other routes.
+include route_to_title.txt
+hold cross 6
+wait 120
+hold cross 6
+wait 120
+hold cross 6
+wait 120
+hold cross 6
+wait 120
+hold start 6
+wait 200
+hold cross 6
+wait 200
+hold cross 6
+wait 200

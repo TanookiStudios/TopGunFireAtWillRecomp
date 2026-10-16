@@ -10,7 +10,7 @@ typedef struct TgfawOptions {
     /* No reverb switch: the game never turns the sound chip's reverb on
      * (checked in the intro movie and mission 1), so it would do nothing. */
     int inf_missiles;
-    int inf_ammo;
+    int inf_lives;
     int cant_be_hit;
 } TgfawOptions;
 

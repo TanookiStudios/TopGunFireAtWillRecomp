@@ -1,0 +1,12 @@
+# Infinite missiles: fire three in mission 1; with the cheat the count stays 50.
+include route_to_mission1.txt
+wait 400
+shot c0_before
+hold circle 4
+wait 60
+hold circle 4
+wait 60
+hold circle 4
+wait 60
+shot c1_after_three
+ram c1

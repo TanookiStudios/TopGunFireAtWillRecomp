@@ -22,6 +22,7 @@ Route file: one step per line, '#' comments.
     poke <hex addr> <hex byte>  write one byte of main RAM
     audio <name>                print the sound output's audible-sample count and peak
     spu <name>                  print the sound chip's reverb / CD / voice-echo settings
+    include <route.txt>         run another route's steps here (path relative to this file)
 """
 import json
 import os
@@ -137,45 +138,98 @@ def present_shot(g, path):
     raise RuntimeError("present_shot never completed")
 
 
-def route(path, out, window=False):
+def steps(path):
+    for line in open(path):
+        w = line.split("#")[0].split()
+        if w and w[0] == "include":
+            yield from steps(os.path.join(os.path.dirname(path), w[1]))
+        else:
+            yield line
+
+
+LAST_GAME = None
+
+
+def route(path, out, window=False, keep_running=False):
+    """Every hold/wait is queued up front in the runtime's input route, which
+    counts the game's own pad reads, so inputs land on the same game frame in
+    every run. Captures (shot, ram, ...) run as the route reaches them, a
+    frame or two late at most; key/sleep/pshot are for the paused menu."""
     os.makedirs(out, exist_ok=True)
+    inputs, actions = [], []          # actions: (input index reached, step words)
+    for line in steps(path):
+        w = line.split("#")[0].split()
+        if not w:
+            continue
+        if w[0] in ("hold", "wait"):
+            buttons, n = ("none", int(w[1])) if w[0] == "wait" else (w[1], int(w[2]))
+            inputs.append((mask(buttons), n))
+        else:
+            actions.append((len(inputs), w))
     g = Game(os.path.join(out, "run.log"), window)
     try:
-        for line in open(path):
-            w = line.split("#")[0].split()
-            if not w:
-                continue
-            if w[0] in ("hold", "wait"):
-                buttons, n = ("none", int(w[1])) if w[0] == "wait" else (w[1], int(w[2]))
-                g.cmd("set_input", buttons=f"0x{mask(buttons):04X}")  # held until the next step
-                g.wait_frames(n)
-            elif w[0] == "shot":
-                g.cmd("screenshot", path=os.path.join(out, w[1] + ".png"))
-            elif w[0] == "audio":
-                taps = {x["name"]: x for x in g.cmd("audio_stats")["taps"]}
-                o = taps["spu_out"]
-                print(f"audio {w[1]}: frames={o['frames']} audible={o.get('audible')} peak={o.get('peak')}")
-            elif w[0] == "spu":
-                r = g.cmd("spu_status")
-                print(f"spu {w[1]}: ctrl={r['ctrl']} reverb_on={r['reverb_on']} eon={r['eon']} "
-                      f"mbase={r['reverb_mbase']} cd_vol={r['cd_l']}")
-            elif w[0] == "sleep":
-                time.sleep(int(w[1]) / 1000)
-            elif w[0] == "key":
-                g.cmd("host_key", name=w[1])
-                time.sleep(0.15)
-            elif w[0] == "pshot":
-                present_shot(g, os.path.join(out, w[1] + ".png"))
-            elif w[0] == "poke":
-                g.cmd("write_ram", addr=w[1], val=w[2])
-            elif w[0] == "ram":
-                data = bytes.fromhex(g.cmd("read_ram", addr="0x80000000", len=0x200000)["hex"])
-                open(os.path.join(out, w[1] + ".ram"), "wb").write(data)
-            else:
-                sys.exit(f"unknown route step: {line.strip()}")
+        g.cmd("input_route_clear")
+        for b, n in inputs:
+            g.cmd("input_route_append", buttons=b, frames=n)
+        if inputs:
+            g.cmd("input_route_start", at_frame=30)   # same guest frame every run
+
+        def reached(k):          # all inputs before position k are done
+            if k == 0:
+                return True
+            st = g.cmd("input_route_status")
+            return not st["active"] or st["index"] >= k
+
+        for k, w in actions:
+            while not reached(k):
+                if g.proc.poll() is not None:
+                    sys.exit("game exited during the route")
+                time.sleep(0.005)
+            do_action(g, w, out)
+        while not reached(len(inputs)):
+            time.sleep(0.01)
         print(f"route done at frame {g.frame()}")
     finally:
-        g.close()
+        if keep_running:
+            global LAST_GAME
+            LAST_GAME = g
+        else:
+            g.close()
+
+
+def do_action(g, w, out):
+    if w[0] == "shot":
+        for tries in range(60):   # the game blanks the display between screens
+            try:
+                g.cmd("screenshot", path=os.path.join(out, w[1] + ".png"))
+                return
+            except RuntimeError as e:
+                if "display disabled" not in str(e):
+                    raise
+                g.wait_frames(5)
+        print(f"shot {w[1]}: display stayed off (blank screen), no picture")
+    elif w[0] == "ram":
+        data = bytes.fromhex(g.cmd("read_ram", addr="0x80000000", len=0x200000)["hex"])
+        open(os.path.join(out, w[1] + ".ram"), "wb").write(data)
+    elif w[0] == "poke":
+        g.cmd("write_ram", addr=w[1], val=w[2])
+    elif w[0] == "audio":
+        taps = {x["name"]: x for x in g.cmd("audio_stats")["taps"]}
+        o = taps["spu_out"]
+        print(f"audio {w[1]}: frames={o['frames']} audible={o.get('audible')} peak={o.get('peak')}")
+    elif w[0] == "spu":
+        r = g.cmd("spu_status")
+        print(f"spu {w[1]}: ctrl={r['ctrl']} reverb_on={r['reverb_on']} eon={r['eon']} "
+              f"mbase={r['reverb_mbase']} cd_vol={r['cd_l']}")
+    elif w[0] == "sleep":
+        time.sleep(int(w[1]) / 1000)
+    elif w[0] == "key":
+        g.cmd("host_key", name=w[1])
+        time.sleep(0.15)
+    elif w[0] == "pshot":
+        present_shot(g, os.path.join(out, w[1] + ".png"))
+    else:
+        sys.exit(f"unknown route step: {' '.join(w)}")
 
 
 if __name__ == "__main__":

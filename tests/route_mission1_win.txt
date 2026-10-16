@@ -1,0 +1,123 @@
+include route_to_mission1.txt
+ram k_start
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+shot k00
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+shot k01
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+shot k02
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+shot k03
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+shot k04
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+shot k05
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+shot k06
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+shot k07
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+shot k08
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+shot k09
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+shot k10
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+shot k11
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+shot k12
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+shot k13
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+shot k14
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+shot k15
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+shot k16
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+shot k17
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+shot k18
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+shot k19
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+shot k20
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+shot k21
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+shot k22
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+shot k23
+ram k_end

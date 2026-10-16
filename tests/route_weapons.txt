@@ -1,0 +1,32 @@
+include route_to_mission1.txt
+shot w0
+ram w0
+hold triangle 4
+wait 40
+shot w1
+hold triangle 4
+wait 40
+shot w2
+hold triangle 4
+wait 40
+shot w3
+hold triangle 4
+wait 40
+shot w4
+hold triangle 4
+wait 40
+shot w5
+hold triangle 4
+wait 40
+shot w6
+ram g0
+hold cross 120
+ram g1
+shot g1
+hold cross 120
+ram g2
+shot g2
+hold square 4
+wait 30
+ram f1
+shot f1

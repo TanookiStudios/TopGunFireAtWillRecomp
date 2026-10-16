@@ -1,0 +1,31 @@
+include route_to_debrief1.txt
+ram m1_debrief
+shot m1_debrief
+hold cross 6
+wait 200
+shot m2_a
+hold cross 6
+wait 200
+shot m2_b
+hold cross 6
+wait 200
+shot m2_c
+hold cross 6
+wait 200
+shot m2_d
+hold start 6
+wait 200
+shot m2_e
+hold cross 6
+wait 200
+shot m2_f
+hold cross 6
+wait 300
+shot m2_g
+ram m2_flying
+wait 600
+shot m2_h
+ram m2_h
+wait 600
+shot m2_i
+ram m2_i

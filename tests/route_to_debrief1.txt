@@ -1,0 +1,46 @@
+# Mission 1 won (one Standard on the drone), debrief, on to mission 2.
+include route_to_mission1.txt
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+hold r1 4
+wait 40
+hold circle 4
+wait 120
+hold r1 4
+wait 40
+hold circle 4
+wait 120

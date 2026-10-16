@@ -1,0 +1,21 @@
+# Title -> Options -> Controller page (the game's own button chart).
+include route_to_title.txt
+shot c0_title
+hold down 6
+wait 30
+shot c1_on_options
+hold cross 6
+wait 120
+shot c2_options
+hold up 6
+wait 20
+shot c3_on_controller
+hold cross 6
+wait 120
+shot c4_controller
+hold right 6
+wait 60
+shot c5_controller_right
+hold right 6
+wait 60
+shot c6_controller_right2

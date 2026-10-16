@@ -1,0 +1,9 @@
+# Proof for notes/ram-map.md: the missile count lives at 0x801CFECA.
+include route_to_mission1.txt
+shot p0_before
+poke 0x801CFECA 0x07
+wait 10
+shot p1_poked_7
+hold circle 4
+wait 90
+shot p2_fired_one

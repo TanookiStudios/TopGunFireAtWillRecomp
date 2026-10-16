@@ -1,0 +1,34 @@
+diff --git a/runtime/include/psx_title_host.h b/runtime/include/psx_title_host.h
+index 4743beb9..2e8e6a66 100644
+--- a/runtime/include/psx_title_host.h
++++ b/runtime/include/psx_title_host.h
+@@ -21,6 +21,10 @@ void psx_title_set_launcher_hook(PsxTitleLauncherHook hook);
+  * straight into the game (no launcher). In-game menu builds only. */
+ void psx_title_request_reset(void);
+ 
++/* Called every guest VBlank (deterministic guest time), before mod plugins.
++ * For a title's cheats: read/write RAM with psx_mod_read_* / psx_mod_write_*. */
++void psx_title_set_vblank_hook(void (*hook)(void));
++
+ #ifdef __cplusplus
+ }
+ #endif
+diff --git a/runtime/src/mod_runtime.cpp b/runtime/src/mod_runtime.cpp
+index d7c0cdb7..99a2c92c 100644
+--- a/runtime/src/mod_runtime.cpp
++++ b/runtime/src/mod_runtime.cpp
+@@ -2867,9 +2867,14 @@ extern "C" void mod_runtime_activate_plugins(void) {
+     timing.success();
+ }
+ 
++/* A title's own per-VBlank hook (psx_title_host.h): always on, guest time. */
++static void (*g_psx_title_vblank)(void) = nullptr;
++extern "C" void psx_title_set_vblank_hook(void (*hook)(void)) { g_psx_title_vblank = hook; }
++
+ extern "C" void mod_runtime_on_vblank(void) {
+     using namespace PSXRecompV4;
+     ++g_mod_vblanks;
++    if (g_psx_title_vblank) g_psx_title_vblank();
+     RuntimeMods& s = state();
+     /* An own-view plan never touches the shared simulation. */
+     if (!s.initialized || !s.plan.ok || s.netplay_view_plan) return;
