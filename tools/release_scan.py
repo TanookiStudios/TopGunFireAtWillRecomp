@@ -31,6 +31,9 @@ BAD_DIRS = {"generated", "disc", "src", "overlay_cache"}
 # player's machine. Its standard headers are not game code; its folder is
 # still searched for game bytes, only the file-type rule is relaxed there.
 TOOLCHAIN_DIR = "overlay_toolchain"
+# The bundled OpenBIOS (MIT, from PCSX-Redux) is the one .bin a release may
+# carry. Still byte-scanned like every other file.
+OPENBIOS = os.path.join("bios", "openbios.bin")
 SAMPLE_LEN = 32
 
 
@@ -71,7 +74,8 @@ def scan(folder, game):
             p = os.path.join(dirpath, name)
             nfiles += 1
             ext = os.path.splitext(name)[1].lower()
-            if name.lower() in BAD_NAMES or (ext in BAD_EXT and not (in_toolchain and ext == ".h")):
+            allowed = (in_toolchain and ext == ".h") or os.path.relpath(p, folder).endswith(OPENBIOS)
+            if name.lower() in BAD_NAMES or (ext in BAD_EXT and not allowed):
                 problems.append(f"forbidden file type: {p}")
             if os.path.islink(p):
                 problems.append(f"symlink (not scanned): {p}")
@@ -117,6 +121,7 @@ def self_test(game):
         "game code hidden in the compiler folder": lambda d: (os.makedirs(os.path.join(d, TOOLCHAIN_DIR)),
             open(os.path.join(d, TOOLCHAIN_DIR, "x.h"), "wb").write(code)),
         "the boot program renamed": lambda d: open(os.path.join(d, "data.dat"), "wb").write(exe),
+        "a disc image named like the BIOS somewhere else": lambda d: open(os.path.join(d, "openbios.bin"), "wb").write(b"x"),
     }
     for label, make in cases.items():
         with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as d:
@@ -129,6 +134,8 @@ def self_test(game):
         open(os.path.join(d, "prog"), "wb").write(os.urandom(4096))
         os.makedirs(os.path.join(d, TOOLCHAIN_DIR))
         open(os.path.join(d, TOOLCHAIN_DIR, "stdio.h"), "w").write("int printf(const char*, ...);")
+        os.makedirs(os.path.join(d, "bios"))
+        open(os.path.join(d, OPENBIOS), "wb").write(os.urandom(4096))
         if scan(d, game)[0]:
             sys.exit("SELF-TEST FAILED: clean folder was flagged")
     print("  clean folder passes")

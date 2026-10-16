@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Top Gun Fire at Will
+Comment=Top Gun: Fire at Will rebuilt as a native program (bring your own disc)
+Exec=TopGunFireAtWill
+Icon=topgunfaw
+Categories=Game;Simulation;
+Terminal=false
