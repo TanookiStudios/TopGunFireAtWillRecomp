@@ -8,5 +8,5 @@ cd /src
 # OpenGL LEGACY: link libGL.so.1 (every desktop with graphics has it), not
 # libOpenGL.so.0, which minimal desktops can lack.
 cmake -S . -B build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release -DPSXRECOMP_REQUIRE_GAME_C=ON \
-    -DCMAKE_DISABLE_FIND_PACKAGE_Freetype=ON -DOpenGL_GL_PREFERENCE=LEGACY
+    -DCMAKE_DISABLE_FIND_PACKAGE_Freetype=ON -DCMAKE_DISABLE_FIND_PACKAGE_OpenSSL=ON -DOpenGL_GL_PREFERENCE=LEGACY
 cmake --build build-linux --parallel "$(nproc)"

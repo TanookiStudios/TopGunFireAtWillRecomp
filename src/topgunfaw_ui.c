@@ -16,6 +16,16 @@
 
 TgfawOptions g_tgfaw = { .integer_scale = 1 };   /* house style: crisp by default */
 
+/* The game's own mission ranges (read from its "LOADING ..." code). */
+static const char *const kMissions[32] = {
+    "Off (start at Miramar 1)", "Miramar 2", "Miramar 3", "Miramar 4", "Miramar 5", "Miramar 6",
+    "Cuba 1", "Cuba 2", "Cuba 3", "Cuba 4", "Cuba 5", "Cuba 6", "Cuba 7",
+    "Korea 1", "Korea 2", "Korea 3", "Korea 4", "Korea 5", "Korea 6", "Korea 7", "Korea 8",
+    "Korea 9", "Korea 10",
+    "Libya 1", "Libya 2", "Libya 3", "Libya 4", "Libya 5", "Libya 6", "Libya 7", "Libya 8",
+    "Bonus mission",
+};
+
 #define ROW(key, section, label, desc) { key, section, label, desc, \
                       RECOMP_RUNTIME_UI_BOOL, 0, 1, 1, NULL, 0, NULL }
 
@@ -26,7 +36,11 @@ static const RecompRuntimeUiItem kRows[] = {
     ROW("tgfaw.mute.sfx",    "Audio", "Mute sound effects", "Silences engines, guns, missiles and radio beeps (all 24 of the PlayStation's sound voices)."),
     ROW("tgfaw.cheat.missiles", "Cheats", "Infinite missiles", "Firing a missile never uses one up."),
     ROW("tgfaw.cheat.lives",    "Cheats", "Infinite lives", "Getting shot down or crashing never costs a life."),
-    ROW("tgfaw.cheat.hit",      "Cheats", "Can't be hit", "Your jet takes no damage."),
+    { "tgfaw.cheat.start", "Cheats", "Start at mission", "New games begin at this mission.",
+      RECOMP_RUNTIME_UI_CHOICE, 0, 31, 1, kMissions, 32, NULL },
+    { "tgfaw.cheat.skip", "Cheats", "Skip to the next mission",
+      "Moves you on one mission. Then pause and choose Abort Mission: the next one loads and no life is lost.",
+      RECOMP_RUNTIME_UI_ACTION, 0, 0, 0, NULL, 0, NULL },
 };
 #define ROW_COUNT (sizeof kRows / sizeof kRows[0])
 
@@ -56,7 +70,7 @@ static int *field(const RecompRuntimeUiItem *it) {
         { "tgfaw.mute.sfx",       offsetof(TgfawOptions, mute_sfx) },
         { "tgfaw.cheat.missiles", offsetof(TgfawOptions, inf_missiles) },
         { "tgfaw.cheat.lives",    offsetof(TgfawOptions, inf_lives) },
-        { "tgfaw.cheat.hit",      offsetof(TgfawOptions, cant_be_hit) },
+        { "tgfaw.cheat.start",    offsetof(TgfawOptions, start_mission) },   /* the mission itself, 0 = off */
     };
     for (size_t i = 0; i < sizeof map / sizeof map[0]; i++)
         if (strcmp(it->key, map[i].key) == 0) return (int *)((char *)&g_tgfaw + map[i].off);
@@ -71,7 +85,10 @@ static void save(void) {
     if (!s_ini[0]) return;
     FILE *f = fopen(s_ini, "w");
     if (!f) return;
-    for (size_t i = 0; i < ROW_COUNT; i++) fprintf(f, "%s=%d\n", kRows[i].key, *field(&kRows[i]));
+    for (size_t i = 0; i < ROW_COUNT; i++) {
+        const int *p = field(&kRows[i]);
+        if (p) fprintf(f, "%s=%d\n", kRows[i].key, *p);   /* action rows have no value */
+    }
     fclose(f);
 }
 
@@ -83,14 +100,20 @@ static void load(void) {
         char *eq = strchr(line, '=');
         if (!eq) continue;
         *eq = 0;
-        for (size_t i = 0; i < ROW_COUNT; i++)
-            if (strcmp(line, kRows[i].key) == 0) *field(&kRows[i]) = atoi(eq + 1) ? 1 : 0;
+        for (size_t i = 0; i < ROW_COUNT; i++) {
+            int *p = field(&kRows[i]);
+            if (!p || strcmp(line, kRows[i].key) != 0) continue;
+            const int v = atoi(eq + 1);
+            if (kRows[i].type == RECOMP_RUNTIME_UI_BOOL) *p = v ? 1 : 0;
+            else *p = v >= 2 && v <= 32 ? v : 0;   /* start mission */
+        }
     }
     fclose(f);
 }
 
 static int get_value(void *ctx, const RecompRuntimeUiItem *it, int *out) {
     (void)ctx;
+    if (is_key(it, "tgfaw.cheat.start")) { *out = g_tgfaw.start_mission > 1 ? g_tgfaw.start_mission - 1 : 0; return 1; }
     if (is_key(it, RECOMP_RUNTIME_UI_KEY_VOLUME)) { *out = host_volume_get(); return 1; }
     if (is_key(it, RECOMP_RUNTIME_UI_KEY_STATE_SLOT)) { *out = s_slot; return 1; }
     int *p = field(it);
@@ -101,6 +124,11 @@ static int get_value(void *ctx, const RecompRuntimeUiItem *it, int *out) {
 
 static int set_value(void *ctx, const RecompRuntimeUiItem *it, int v) {
     (void)ctx;
+    if (is_key(it, "tgfaw.cheat.start")) {
+        g_tgfaw.start_mission = v >= 1 && v <= 31 ? v + 1 : 0;
+        save();
+        return 1;
+    }
     if (is_key(it, RECOMP_RUNTIME_UI_KEY_VOLUME)) { host_volume_set(v); return 1; }
     if (is_key(it, RECOMP_RUNTIME_UI_KEY_STATE_SLOT)) { s_slot = v < 1 ? 1 : (v > 10 ? 10 : v); return 1; }
     int *p = field(it);
@@ -119,6 +147,7 @@ static int run_action(void *ctx, const RecompRuntimeUiItem *it) {
     if (is_key(it, RECOMP_RUNTIME_UI_KEY_SAVE_STATE)) return savestate_request_save(s_slot - 1);
     if (is_key(it, RECOMP_RUNTIME_UI_KEY_LOAD_STATE)) return savestate_request_load(s_slot - 1);
     if (is_key(it, RECOMP_RUNTIME_UI_KEY_RESET)) { psx_title_request_reset(); return 1; }
+    if (is_key(it, "tgfaw.cheat.skip")) return TgfawSkipMission();
     return 0;
 }
 

@@ -11,12 +11,16 @@ typedef struct TgfawOptions {
      * (checked in the intro movie and mission 1), so it would do nothing. */
     int inf_missiles;
     int inf_lives;
-    int cant_be_hit;
+    int start_mission;   /* 0/1 off, else 2..32 */
 } TgfawOptions;
 
 extern TgfawOptions g_tgfaw;
 
 /* Push the audio switches into the engine (called after every change). */
 void TgfawApplyAudio(void);
+
+/* Esc menu "Skip to the next mission": the mission number moves on one, and
+ * the life the player then loses by aborting is given back. 0 = not now. */
+int TgfawSkipMission(void);
 
 #endif

@@ -29,9 +29,10 @@ cmake -S . -B build-mac -G Ninja -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
     -DCMAKE_DISABLE_FIND_PACKAGE_SDL3=ON \
     -DCMAKE_DISABLE_FIND_PACKAGE_Freetype=ON -DCMAKE_DISABLE_FIND_PACKAGE_PkgConfig=ON \
+    -DCMAKE_DISABLE_FIND_PACKAGE_OpenSSL=ON -U "OPENSSL*" \
     -DCMAKE_IGNORE_PREFIX_PATH=/opt/homebrew:/usr/local \
     -DPSXRECOMP_REQUIRE_GAME_C=ON >/dev/null
-cmake --build build-mac --parallel 8 >/dev/null
+cmake --build build-mac --parallel 8 > work/build-mac.log 2>&1 || { grep -E "error|Undefined|FAILED" work/build-mac.log | head -20 >&2; exit 1; }
 
 # The engine's own packager gathers what the runtime reads beside the program
 # (assets, the bundled OpenBIOS and its notice, game.toml, the mod catalog,
@@ -42,9 +43,11 @@ STAGE=dist/stage-game-macos-universal
 APP="dist/$NAME.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp -R "$STAGE/." "$APP/Contents/MacOS/"
-# The launcher looks for its pictures under Contents/Resources inside a bundle.
-cp -R "$STAGE/assets" "$APP/Contents/Resources/assets"
+# Only the program goes in MacOS; everything it reads goes in Resources (code
+# signing treats folders there as code). The runtime finds them through the
+# links it keeps in Application Support (patch 0002), the launcher directly.
+cp "$STAGE/$EXE" "$APP/Contents/MacOS/$EXE"
+( cd "$STAGE" && for f in *; do [ "$f" = "$EXE" ] || cp -R "$f" "../../$APP/Contents/Resources/"; done )
 cp assets/icon/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 cp LICENSE THIRD_PARTY_NOTICES.md "$APP/Contents/Resources/"
 VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || true)

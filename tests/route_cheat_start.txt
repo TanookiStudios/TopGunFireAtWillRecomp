@@ -1,0 +1,11 @@
+# Start at mission: with TGFAW_START=9 a new game opens on Cuba 3's briefing
+# ("Cuba is launching a counterstrike"); without it, Miramar 1's.
+include route_to_title.txt
+hold cross 6
+wait 160
+hold cross 6
+wait 160
+hold cross 6
+wait 160
+shot briefing
+ram briefing

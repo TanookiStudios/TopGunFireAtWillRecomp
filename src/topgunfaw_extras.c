@@ -16,6 +16,11 @@
 #define NOT_CARRIED   0xFFFFu
 /* Lives, as the debrief shows them. */
 #define LIVES         0x8019FE39u
+/* Mission number, 1..32 (the game's own ranges: 1-6 Miramar, 7-13 Cuba,
+ * 14-23 Korea, 24-31 Libya, 32 the bonus mission). It reads 1 at the title
+ * and the next new game starts at whatever it holds. */
+#define MISSION       0x8019FE18u
+#define MISSIONS      32
 
 void TgfawApplyAudio(void) {
     g_spu_host_mute = (g_tgfaw.mute_music ? SPU_HOST_MUTE_MUSIC : 0u) |
@@ -28,6 +33,7 @@ void TgfawApplyAudio(void) {
 static uint16_t s_weapons[WEAPON_SLOTS];
 static uint8_t s_lives;
 static int s_seen;
+static int s_skip_pending;   /* the next lost life is the skip's abort: give it back */
 
 static void cheats_vblank(void) {
     if (!psx_mod_game_started()) { s_seen = 0; return; }
@@ -42,12 +48,26 @@ static void cheats_vblank(void) {
         s_weapons[i] = v;
     }
     uint8_t lives = psx_mod_read_byte(LIVES);
-    if (g_tgfaw.inf_lives && s_seen && lives + 1u == s_lives) {
+    if ((g_tgfaw.inf_lives || s_skip_pending) && s_seen && lives + 1u == s_lives) {
         psx_mod_write_byte(LIVES, s_lives);
         lives = s_lives;
+        s_skip_pending = 0;
     }
+    /* Start at mission: a new game begins at the chosen mission. The number
+     * only reads 1 before a first mission, so mission 1 is simply replaced. */
+    if (g_tgfaw.start_mission > 1 && psx_mod_read_word(MISSION) == 1u)
+        psx_mod_write_word(MISSION, (uint32_t)g_tgfaw.start_mission);
     s_lives = lives;
     s_seen = 1;
+}
+
+int TgfawSkipMission(void) {
+    if (!psx_mod_game_started()) return 0;
+    const uint32_t m = psx_mod_read_word(MISSION);
+    if (m < 1u || m >= MISSIONS) return 0;
+    psx_mod_write_word(MISSION, m + 1u);
+    s_skip_pending = 1;
+    return 1;
 }
 
 PSX_MOD_CONSTRUCTOR(tgfaw_register_cheats) {
@@ -55,7 +75,8 @@ PSX_MOD_CONSTRUCTOR(tgfaw_register_cheats) {
 }
 
 /* Test hook: TGFAW_MUTE=<bits> (1 music, 2 sound effects) and
- * TGFAW_CHEATS=<bits> (1 missiles, 2 lives) for headless runs, which have no
+ * TGFAW_CHEATS=<bits> (1 missiles, 2 lives) and TGFAW_START=<mission> for
+ * headless runs, which have no
  * launcher to set the switches. */
 PSX_MOD_CONSTRUCTOR(tgfaw_env_switches) {
     const char *e = getenv("TGFAW_MUTE");
@@ -71,4 +92,6 @@ PSX_MOD_CONSTRUCTOR(tgfaw_env_switches) {
         g_tgfaw.inf_missiles = (bits & 1u) != 0;
         g_tgfaw.inf_lives = (bits & 2u) != 0;
     }
+    e = getenv("TGFAW_START");   /* start at mission 2..32 */
+    if (e && *e) g_tgfaw.start_mission = atoi(e);
 }

@@ -1,8 +1,8 @@
 diff --git a/runtime/src/main.cpp b/runtime/src/main.cpp
-index 78137a32..3131c8df 100644
+index 78137a32..4420e461 100644
 --- a/runtime/src/main.cpp
 +++ b/runtime/src/main.cpp
-@@ -2905,10 +2905,70 @@ static std::filesystem::path find_upward(std::filesystem::path start,
+@@ -2905,10 +2905,73 @@ static std::filesystem::path find_upward(std::filesystem::path start,
  // authoritative source (independent of argv[0], which can be relative/bare and
  // would otherwise get resolved against cwd by fs::absolute). $APPIMAGE and
  // argv[0] are non-Windows / fallback sources only.
@@ -10,10 +10,12 @@ index 78137a32..3131c8df 100644
 +#include <mach-o/dyld.h>
 +/* Inside a Mac .app the program's folder is read-only (and writing there
 + * would break the code signature). Settings, saves, memory cards and caches
-+ * go to ~/Library/Application Support/<program name>/ instead; that folder
-+ * holds links back to the app's own read-only files (assets, BIOS, game.toml,
-+ * the bundled mods), refreshed every launch so a moved or updated app is
-+ * followed. Files the player made there are never replaced. */
++ * go to ~/Library/Application Support/<program name>/ instead, refreshed from
++ * the app's Contents/Resources every launch so a moved or updated app is
++ * followed: its folders are linked (read-only data), its loose files are
++ * copied (the runtime writes to some, e.g. game.toml), and saves/ and mods/
++ * are real folders (mods/ holds the player's state.toml; its bundled
++ * packages are links). The player's own files are never replaced. */
 +static void link_bundle_entries(const std::filesystem::path& from,
 +                                const std::filesystem::path& to,
 +                                const std::filesystem::path& skip) {
@@ -23,17 +25,18 @@ index 78137a32..3131c8df 100644
 +        const fs::path name = e.path().filename();
 +        if (name == skip) continue;
 +        const fs::path dst = to / name;
-+        if (name == "mods" && e.is_directory(ec)) {
-+            /* mods/ also holds the player's state.toml: a real folder
-+             * whose bundled children are links. */
++        if (e.is_directory(ec) && (name == "mods" || name == "saves")) {
 +            if (fs::is_symlink(dst, ec)) fs::remove(dst, ec);
 +            fs::create_directories(dst, ec);
-+            link_bundle_entries(e.path(), dst, fs::path());
++            if (name == "mods") link_bundle_entries(e.path(), dst, fs::path());
 +            continue;
 +        }
-+        if (fs::is_symlink(dst, ec)) fs::remove(dst, ec);
-+        else if (fs::exists(dst, ec)) continue;   /* the player's own file */
-+        fs::create_symlink(e.path(), dst, ec);
++        const bool ours = fs::is_symlink(dst, ec) || !fs::exists(dst, ec) ||
++                          e.is_regular_file(ec);   /* a loose file the app ships */
++        if (!ours) continue;                       /* the player's own folder */
++        fs::remove(dst, ec);
++        if (e.is_directory(ec)) fs::create_symlink(e.path(), dst, ec);
++        else fs::copy_file(e.path(), dst, fs::copy_options::overwrite_existing, ec);
 +    }
 +}
 +static std::filesystem::path mac_app_data_dir(void) {
@@ -57,7 +60,7 @@ index 78137a32..3131c8df 100644
 +    const fs::path data = fs::path(home) / "Library" / "Application Support" / exe.filename();
 +    fs::create_directories(data, ec);
 +    if (ec) return cached;
-+    link_bundle_entries(bin, data, exe.filename());
++    link_bundle_entries(bin.parent_path() / "Resources", data, exe.filename());
 +    cached = data;
 +    return cached;
 +}

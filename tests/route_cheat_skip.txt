@@ -1,0 +1,45 @@
+# Skip to the next mission, through the Esc menu (run with --window): in
+# mission 1, Esc > Cheats > Skip, close the menu, pause, Abort Mission, Yes.
+# Continue should load mission 2 ("These drones are smaller and faster")
+# and the debrief should still show 3 lives.
+include route_to_mission1.txt
+wait 400
+key Escape
+sleep 400
+key Down
+key Down
+key Down
+key Down
+key Down
+key Return
+sleep 300
+key Down
+key Down
+key Down
+pshot s0_menu_on_skip
+key Return
+sleep 300
+pshot s1_after_skip
+key Escape
+key Escape
+sleep 400
+hold start 6
+wait 60
+hold down 6
+wait 30
+hold cross 6
+wait 60
+hold left 6
+wait 30
+hold cross 6
+wait 1800
+shot s2_debrief
+ram s2
+hold cross 6
+wait 160
+hold cross 6
+wait 160
+hold cross 6
+wait 160
+shot s3_next_briefing
+ram s3

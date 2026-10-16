@@ -6,7 +6,6 @@ name = "Top Gun: Fire at Will"
 id = "SLUS-00032"
 players = 1
 exe = "disc/SLUS_000.32"
-disc = "disc/topgunfaw.cue"
 load_address = "0x80010000"
 entry_pc = "0x8002A600"
 text_size = "0x000B9800"
