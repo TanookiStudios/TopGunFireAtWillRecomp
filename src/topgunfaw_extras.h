@@ -4,9 +4,11 @@
 #define TOPGUNFAW_EXTRAS_H
 
 typedef struct TgfawOptions {
+    int integer_scale;   /* picture grows in whole 240-line steps */
     int mute_music;      /* CD audio and movie sound */
     int mute_sfx;        /* the 24 sound-chip voices */
-    int mute_reverb;     /* the sound chip's echo */
+    /* No reverb switch: the game never turns the sound chip's reverb on
+     * (checked in the intro movie and mission 1), so it would do nothing. */
     int inf_missiles;
     int inf_ammo;
     int cant_be_hit;

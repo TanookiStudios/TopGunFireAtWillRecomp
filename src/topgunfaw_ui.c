@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "gpu_gl_renderer.h"    /* gl_renderer_set_integer_scale */
 #include "host_osd.h"           /* host_volume_get/set */
 #include "mod_plugins.h"        /* PSX_MOD_CONSTRUCTOR */
 #include "savestate.h"
@@ -13,15 +14,16 @@
 #include "recomp_runtime_ui.h"
 #include "topgunfaw_extras.h"
 
-TgfawOptions g_tgfaw;
+TgfawOptions g_tgfaw = { .integer_scale = 1 };   /* house style: crisp by default */
 
 #define ROW(key, section, label, desc) { key, section, label, desc, \
                       RECOMP_RUNTIME_UI_BOOL, 0, 1, 1, NULL, 0, NULL }
 
 static const RecompRuntimeUiItem kRows[] = {
+    ROW("tgfaw.integer_scale", "Display", "Integer scaling",
+        "On: the picture grows in whole steps, so every line is the same thickness. Off: it fills the window."),
     ROW("tgfaw.mute.music",  "Audio", "Mute music", "Silences the music and the movie soundtrack (the disc's own audio)."),
     ROW("tgfaw.mute.sfx",    "Audio", "Mute sound effects", "Silences engines, guns, missiles and radio beeps (all 24 of the PlayStation's sound voices)."),
-    ROW("tgfaw.mute.reverb", "Audio", "Mute reverb", "Turns off the sound chip's echo, for a drier sound."),
     ROW("tgfaw.cheat.missiles", "Cheats", "Infinite missiles", "Firing a missile never uses one up."),
     ROW("tgfaw.cheat.ammo",     "Cheats", "Infinite gun ammo", "The cannon never runs dry."),
     ROW("tgfaw.cheat.hit",      "Cheats", "Can't be hit", "Your jet takes no damage."),
@@ -48,9 +50,10 @@ static int is_key(const RecompRuntimeUiItem *it, const char *key) { return it &&
 
 static int *field(const RecompRuntimeUiItem *it) {
     static const struct { const char *key; size_t off; } map[] = {
+        { "tgfaw.integer_scale",  offsetof(TgfawOptions, integer_scale) },
+        { RECOMP_RUNTIME_UI_KEY_INTEGER_SCALE, offsetof(TgfawOptions, integer_scale) },
         { "tgfaw.mute.music",     offsetof(TgfawOptions, mute_music) },
         { "tgfaw.mute.sfx",       offsetof(TgfawOptions, mute_sfx) },
-        { "tgfaw.mute.reverb",    offsetof(TgfawOptions, mute_reverb) },
         { "tgfaw.cheat.missiles", offsetof(TgfawOptions, inf_missiles) },
         { "tgfaw.cheat.ammo",     offsetof(TgfawOptions, inf_ammo) },
         { "tgfaw.cheat.hit",      offsetof(TgfawOptions, cant_be_hit) },
@@ -104,6 +107,7 @@ static int set_value(void *ctx, const RecompRuntimeUiItem *it, int v) {
     if (!p) return 0;
     *p = v ? 1 : 0;
     TgfawApplyAudio();
+    gl_renderer_set_integer_scale(g_tgfaw.integer_scale);
     save();
     return 1;
 }
@@ -148,6 +152,7 @@ static void launcher_info(RecompLauncherCGameInfo *gi) {
         strncat(s_ini, "topgunfaw.ini", sizeof s_ini - strlen(s_ini) - 1);
         load();
         TgfawApplyAudio();
+        gl_renderer_set_integer_scale(g_tgfaw.integer_scale);
     }
     gi->game_items = kRows;
     gi->game_item_count = ROW_COUNT;

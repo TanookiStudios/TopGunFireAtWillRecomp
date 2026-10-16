@@ -1,0 +1,32 @@
+# Sound check: intro movie (CD music), then flying in mission 1 (engine sounds).
+wait 300
+audio a_intro_start
+wait 600
+audio b_intro_end
+hold start 10
+wait 300
+hold start 10
+wait 300
+hold cross 10
+wait 300
+hold cross 10
+wait 300
+hold start 10
+wait 300
+hold cross 10
+wait 600
+hold cross 10
+wait 600
+hold cross 10
+wait 600
+hold cross 10
+wait 600
+hold start 10
+wait 600
+hold cross 10
+wait 900
+shot m_flying
+audio c_mission_start
+spu mission
+wait 600
+audio d_mission_end

@@ -1,0 +1,55 @@
+diff --git a/runtime/src/main.cpp b/runtime/src/main.cpp
+index 3131c8df..526a3d56 100644
+--- a/runtime/src/main.cpp
++++ b/runtime/src/main.cpp
+@@ -2998,6 +2998,12 @@ static std::filesystem::path exe_dir_from_argv(const char* argv0) {
+     return exe_dir;
+ }
+ 
++/* Controllers work with no setup: SDL's community database (over 2,000 pads
++ * by name, bundled as assets/gamecontrollerdb.txt), then the player's own
++ * gamecontrollerdb.txt in the settings folder, whose lines win. Call after
++ * SDL's controller support starts; safe to repeat. */
++static void load_controller_db(const char* argv0);
++
+ static std::filesystem::path resolve_existing_runtime_path(const char* requested,
+                                                            const char* argv0) {
+     namespace fs = std::filesystem;
+@@ -3017,6 +3023,21 @@ static std::filesystem::path resolve_existing_runtime_path(const char* requested
+     return {};
+ }
+ 
++static void load_controller_db(const char* argv0) {
++    namespace fs = std::filesystem;
++    const fs::path dir = exe_dir_from_argv(argv0);
++    for (const fs::path& f : {dir / "assets" / "gamecontrollerdb.txt", dir / "gamecontrollerdb.txt"}) {
++        std::error_code ec;
++        if (!fs::is_regular_file(f, ec)) continue;
++#if defined(PSX_SDL3)
++        const int n = SDL_AddGamepadMappingsFromFile(f.string().c_str());
++#else
++        const int n = SDL_GameControllerAddMappingsFromFile(f.string().c_str());
++#endif
++        std::fprintf(stderr, "psxrecomp: controller database %s: %d mappings\n", f.string().c_str(), n);
++    }
++}
++
+ static std::filesystem::path sidecar_cfg_path(const char* argv0, const char* filename) {
+     return exe_dir_from_argv(argv0) / filename;
+ }
+@@ -18660,6 +18681,7 @@ int main(int argc, char** argv) {
+     SDL_SetHint(SDL_HINT_WINDOWS_DPI_SCALING, "0");
+ #endif
+         if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) == 0) {
++            load_controller_db(argv[0]);
+             launcher_boot_timing_mark("host:after_sdl_init");
+             recomp_launcher_set_preserve_sdl(1);
+             int lr = 2; /* 0 = launch, 1 = quit, 2 = unavailable */
+@@ -20476,6 +20498,7 @@ session_reboot:
+             return 1;
+         }
+     }
++    load_controller_db(argv[0]);
+     load_input_config(argv[0]);
+     /* The launcher / settings.toml / game.toml deadzone (when set) is the
+      * user-facing authority; apply it over the input.ini value here, after

@@ -14,7 +14,7 @@ index 0e8d926..f3726d7 100644
          confirm_prompts[count - 1] = "Press again to quit";
      }
 diff --git a/src/consoles/psx/psx_menu_provider.cpp b/src/consoles/psx/psx_menu_provider.cpp
-index f5be1a8..b1b1066 100644
+index f5be1a8..323cb37 100644
 --- a/src/consoles/psx/psx_menu_provider.cpp
 +++ b/src/consoles/psx/psx_menu_provider.cpp
 @@ -18,6 +18,7 @@
@@ -25,7 +25,7 @@ index f5be1a8..b1b1066 100644
  
  namespace rui_psx {
  namespace {
-@@ -51,7 +52,28 @@ RecompRuntimeUiItem g_extra[] = {
+@@ -51,7 +52,29 @@ RecompRuntimeUiItem g_extra[] = {
       RECOMP_RUNTIME_UI_ACTION, 0, 0, 0, nullptr, 0, nullptr},
  };
  
@@ -43,6 +43,7 @@ index f5be1a8..b1b1066 100644
 +bool title_row(const RecompRuntimeUiItem *item) {
 +    if (!g_title_cb || !item || !item->key) return false;
 +    static const char *const kTitleStandard[] = {
++        RECOMP_RUNTIME_UI_KEY_INTEGER_SCALE,
 +        RECOMP_RUNTIME_UI_KEY_VOLUME, RECOMP_RUNTIME_UI_KEY_STATE_SLOT, RECOMP_RUNTIME_UI_KEY_SAVE_STATE,
 +        RECOMP_RUNTIME_UI_KEY_LOAD_STATE, RECOMP_RUNTIME_UI_KEY_RESET,
 +    };
@@ -54,7 +55,7 @@ index f5be1a8..b1b1066 100644
  int disc_count() { return g_host && g_host->disc_count ? g_host->disc_count() : 0; }
  bool netplay() { return g_host && g_host->netplay_active && g_host->netplay_active(); }
  
-@@ -79,6 +101,7 @@ int cb_get(void *, const RecompRuntimeUiItem *item, int *out) {
+@@ -79,6 +102,7 @@ int cb_get(void *, const RecompRuntimeUiItem *item, int *out) {
      else if (is(item, "graphics.render_thread")) *out = g_video.render_thread;
      else if (is(item, RECOMP_RUNTIME_UI_KEY_PAUSE_IN_MENU)) *out = g_pause_in_menu ? 1 : 0;
      else if (is(item, "media.disc")) *out = g_disc;
@@ -62,7 +63,7 @@ index f5be1a8..b1b1066 100644
      else return 0;
      return 1;
  }
-@@ -101,6 +124,8 @@ int cb_set(void *, const RecompRuntimeUiItem *item, int v) {
+@@ -101,6 +125,8 @@ int cb_set(void *, const RecompRuntimeUiItem *item, int v) {
          if (v < 1 || v > disc_count()) return 0;
          g_disc = v;
          return 1;
@@ -71,7 +72,7 @@ index f5be1a8..b1b1066 100644
      } else {
          return 0;
      }
-@@ -127,12 +152,15 @@ int cb_action(void *, const RecompRuntimeUiItem *item) {
+@@ -127,12 +153,15 @@ int cb_action(void *, const RecompRuntimeUiItem *item) {
              return 0;
          }
          close_menu();  // the lid cycle runs in the game
@@ -87,7 +88,7 @@ index f5be1a8..b1b1066 100644
      return 1;
  }
  
-@@ -170,7 +198,22 @@ int p_attach(void *, void *, void *, const PsxMenuHost *host) {
+@@ -170,7 +199,22 @@ int p_attach(void *, void *, void *, const PsxMenuHost *host) {
      // Chosen by default (the title chose no provider): keep the title's
      // presentation -- recomp-ui's game menu is for multi-disc titles.
  #if defined(PSX_MENU_HOST_HAS_DEFAULT_SELECTION)
@@ -111,7 +112,7 @@ index f5be1a8..b1b1066 100644
  #endif
      g_host = host;
      if (g_ui) recomp_runtime_ui_destroy(g_ui);
-@@ -195,8 +238,8 @@ int p_attach(void *, void *, void *, const PsxMenuHost *host) {
+@@ -195,8 +239,8 @@ int p_attach(void *, void *, void *, const PsxMenuHost *host) {
      g_extra[0].minimum = 0;
      g_extra[0].maximum = (int)g_extra[0].choice_count - 1;
      RecompRuntimeUiStandardConfig cfg{};
@@ -122,14 +123,15 @@ index f5be1a8..b1b1066 100644
      cfg.menu.theme = "psx";
      cfg.menu.accept_label = "Enter / Cross";
      cfg.menu.back_label = "Esc / Circle";
-@@ -211,6 +254,19 @@ int p_attach(void *, void *, void *, const PsxMenuHost *host) {
+@@ -211,6 +255,20 @@ int p_attach(void *, void *, void *, const PsxMenuHost *host) {
                     RECOMP_RUNTIME_UI_STANDARD_QUIT;
      cfg.extra_items = g_extra;
      cfg.extra_item_count = discs > 1 ? 4 : 2;
 +    if (title_mode()) {
 +        // Same rows as the other Tanooki ports: the title answers volume,
 +        // state slots and reset; no pause or launcher rows.
-+        cfg.features = RECOMP_RUNTIME_UI_STANDARD_FULLSCREEN | RECOMP_RUNTIME_UI_STANDARD_LINEAR_FILTER |
++        cfg.features = RECOMP_RUNTIME_UI_STANDARD_FULLSCREEN | RECOMP_RUNTIME_UI_STANDARD_INTEGER_SCALE |
++                       RECOMP_RUNTIME_UI_STANDARD_LINEAR_FILTER |
 +                       RECOMP_RUNTIME_UI_STANDARD_FMV_FILTER | RECOMP_RUNTIME_UI_STANDARD_VOLUME |
 +                       RECOMP_RUNTIME_UI_STANDARD_RESUME | RECOMP_RUNTIME_UI_STANDARD_SAVE_STATE |
 +                       RECOMP_RUNTIME_UI_STANDARD_LOAD_STATE | RECOMP_RUNTIME_UI_STANDARD_STATE_SLOT |
@@ -142,7 +144,7 @@ index f5be1a8..b1b1066 100644
      g_ui = recomp_runtime_ui_create_standard(&cfg);
      if (!g_ui) { g_host = nullptr; return 0; }
      return 1;
-@@ -251,6 +307,7 @@ std::mutex &lock() {
+@@ -251,6 +309,7 @@ std::mutex &lock() {
      return m;
  }
  RecompRuntimeUi *model() { return g_ui; }

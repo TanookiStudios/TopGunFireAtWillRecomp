@@ -20,6 +20,8 @@ Route file: one step per line, '#' comments.
     pshot <name>                PNG of the window as the player sees it, menu
                                 included (--window runs only)
     poke <hex addr> <hex byte>  write one byte of main RAM
+    audio <name>                print the sound output's audible-sample count and peak
+    spu <name>                  print the sound chip's reverb / CD / voice-echo settings
 """
 import json
 import os
@@ -149,6 +151,14 @@ def route(path, out, window=False):
                 g.wait_frames(n)
             elif w[0] == "shot":
                 g.cmd("screenshot", path=os.path.join(out, w[1] + ".png"))
+            elif w[0] == "audio":
+                taps = {x["name"]: x for x in g.cmd("audio_stats")["taps"]}
+                o = taps["spu_out"]
+                print(f"audio {w[1]}: frames={o['frames']} audible={o.get('audible')} peak={o.get('peak')}")
+            elif w[0] == "spu":
+                r = g.cmd("spu_status")
+                print(f"spu {w[1]}: ctrl={r['ctrl']} reverb_on={r['reverb_on']} eon={r['eon']} "
+                      f"mbase={r['reverb_mbase']} cd_vol={r['cd_l']}")
             elif w[0] == "sleep":
                 time.sleep(int(w[1]) / 1000)
             elif w[0] == "key":

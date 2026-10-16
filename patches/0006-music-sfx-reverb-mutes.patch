@@ -1,0 +1,84 @@
+diff --git a/runtime/include/spu.h b/runtime/include/spu.h
+index c05d0905..38a7431c 100644
+--- a/runtime/include/spu.h
++++ b/runtime/include/spu.h
+@@ -18,6 +18,14 @@ uint32_t spu_output_pop(int16_t* out_stereo, uint32_t max_frames);
+ void spu_output_drop(uint32_t frames);   /* oldest first */
+ void spu_output_flush(void);
+ uint64_t spu_output_overflow_drops(void);
++/* Player mutes (host only, never seen by the game): bits of
++ * g_spu_host_mute. MUSIC silences the CD input bus (music and movie sound),
++ * SFX the 24 voices (with their reverb send), REVERB the reverb's output. */
++#define SPU_HOST_MUTE_MUSIC  1u
++#define SPU_HOST_MUTE_SFX    2u
++#define SPU_HOST_MUTE_REVERB 4u
++extern volatile unsigned g_spu_host_mute;
++
+ /* Host gate: while it returns nonzero (rollback resimulation, FMV-skip mute)
+  * rendered samples advance SPU state but are not queued. */
+ void spu_set_output_gate(int (*suppressed)(void));
+diff --git a/runtime/src/spu.c b/runtime/src/spu.c
+index 4a4cdf05..36030b9e 100644
+--- a/runtime/src/spu.c
++++ b/runtime/src/spu.c
+@@ -449,6 +449,8 @@ static inline int16_t cd_input_volume(uint16_t raw) {
+     return (int16_t)raw;
+ }
+ 
++volatile unsigned g_spu_host_mute = 0;
++
+ void spu_cd_audio_reset(void) {
+     memset(cd_ring, 0, sizeof(cd_ring));
+     cd_read_pos = 0;
+@@ -1189,7 +1191,7 @@ static void spu_render_block(int16_t* out_stereo, int frames) {
+             } else if (cd_on && cd_push_frames != 0) {
+                 cd_underflow_frames++;
+             }
+-            if (cd_on) {
++            if (cd_on && !(g_spu_host_mute & SPU_HOST_MUTE_MUSIC)) {
+                 int32_t ccl = ((int32_t)cd_l * cd_vol_l) >> 15;
+                 int32_t ccr = ((int32_t)cd_r * cd_vol_r) >> 15;
+                 mix_l += ccl;
+@@ -1227,8 +1229,10 @@ static void spu_render_block(int16_t* out_stereo, int frames) {
+                     wet_r = rev_reconstruct(prev_r, rev_out_r);
+                     rev_phase = 0;
+                 }
+-                mix_l += wet_l;
+-                mix_r += wet_r;
++                if (!(g_spu_host_mute & SPU_HOST_MUTE_REVERB)) {
++                    mix_l += wet_l;
++                    mix_r += wet_r;
++                }
+             }
+ 
+             mix_l = clamp16(mix_l);
+@@ -1301,6 +1305,7 @@ static void spu_render_block(int16_t* out_stereo, int frames) {
+                         t->vol_r = (int16_t)(vr >> 1);
+                     }
+                     if (!s) continue;
++                    if (g_spu_host_mute & SPU_HOST_MUTE_SFX) continue;
+                     int32_t cl = ((int32_t)s * vl) >> 15;
+                     int32_t cr = ((int32_t)s * vr) >> 15;
+                     voice_l += cl;
+@@ -1333,7 +1338,7 @@ static void spu_render_block(int16_t* out_stereo, int frames) {
+             } else if (cd_on && cd_push_frames != 0) {
+                 cd_underflow_frames++;
+             }
+-            if (cd_on) {
++            if (cd_on && !(g_spu_host_mute & SPU_HOST_MUTE_MUSIC)) {
+                 int32_t ccl = ((int32_t)cd_l * cd_vol_l) >> 15;
+                 int32_t ccr = ((int32_t)cd_r * cd_vol_r) >> 15;
+                 mix_l += ccl;
+@@ -1392,8 +1397,10 @@ static void spu_render_block(int16_t* out_stereo, int frames) {
+                     wet_r = rev_reconstruct(prev_r, rev_out_r);
+                     rev_phase = 0;
+                 }
+-                mix_l += wet_l;
+-                mix_r += wet_r;
++                if (!(g_spu_host_mute & SPU_HOST_MUTE_REVERB)) {
++                    mix_l += wet_l;
++                    mix_r += wet_r;
++                }
+             }
+ 
+             /* The 16-bit mix bus saturates BEFORE the main volume applies

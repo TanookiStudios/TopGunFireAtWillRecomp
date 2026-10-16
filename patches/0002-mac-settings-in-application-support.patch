@@ -1,0 +1,75 @@
+diff --git a/runtime/src/main.cpp b/runtime/src/main.cpp
+index 78137a32..3131c8df 100644
+--- a/runtime/src/main.cpp
++++ b/runtime/src/main.cpp
+@@ -2905,10 +2905,70 @@ static std::filesystem::path find_upward(std::filesystem::path start,
+ // authoritative source (independent of argv[0], which can be relative/bare and
+ // would otherwise get resolved against cwd by fs::absolute). $APPIMAGE and
+ // argv[0] are non-Windows / fallback sources only.
++#if defined(__APPLE__)
++#include <mach-o/dyld.h>
++/* Inside a Mac .app the program's folder is read-only (and writing there
++ * would break the code signature). Settings, saves, memory cards and caches
++ * go to ~/Library/Application Support/<program name>/ instead; that folder
++ * holds links back to the app's own read-only files (assets, BIOS, game.toml,
++ * the bundled mods), refreshed every launch so a moved or updated app is
++ * followed. Files the player made there are never replaced. */
++static void link_bundle_entries(const std::filesystem::path& from,
++                                const std::filesystem::path& to,
++                                const std::filesystem::path& skip) {
++    namespace fs = std::filesystem;
++    std::error_code ec;
++    for (const auto& e : fs::directory_iterator(from, ec)) {
++        const fs::path name = e.path().filename();
++        if (name == skip) continue;
++        const fs::path dst = to / name;
++        if (name == "mods" && e.is_directory(ec)) {
++            /* mods/ also holds the player's state.toml: a real folder
++             * whose bundled children are links. */
++            if (fs::is_symlink(dst, ec)) fs::remove(dst, ec);
++            fs::create_directories(dst, ec);
++            link_bundle_entries(e.path(), dst, fs::path());
++            continue;
++        }
++        if (fs::is_symlink(dst, ec)) fs::remove(dst, ec);
++        else if (fs::exists(dst, ec)) continue;   /* the player's own file */
++        fs::create_symlink(e.path(), dst, ec);
++    }
++}
++static std::filesystem::path mac_app_data_dir(void) {
++    namespace fs = std::filesystem;
++    static fs::path cached;
++    static bool done = false;
++    if (done) return cached;
++    done = true;
++    char buf[4096];
++    uint32_t size = sizeof(buf);
++    if (_NSGetExecutablePath(buf, &size) != 0) return cached;
++    std::error_code ec;
++    const fs::path exe = fs::weakly_canonical(fs::path(buf), ec);
++    if (ec) return cached;
++    const fs::path bin = exe.parent_path();
++    if (bin.filename() != "MacOS" || bin.parent_path().filename() != "Contents" ||
++        bin.parent_path().parent_path().extension() != ".app")
++        return cached;   /* a plain build folder: stay beside the program */
++    const char* home = std::getenv("HOME");
++    if (!home || !home[0]) return cached;
++    const fs::path data = fs::path(home) / "Library" / "Application Support" / exe.filename();
++    fs::create_directories(data, ec);
++    if (ec) return cached;
++    link_bundle_entries(bin, data, exe.filename());
++    cached = data;
++    return cached;
++}
++#endif
++
+ static std::filesystem::path exe_dir_from_argv(const char* argv0) {
+     namespace fs = std::filesystem;
+     std::error_code ec;
+     fs::path exe_dir;
++#if defined(__APPLE__)
++    if (const fs::path data = mac_app_data_dir(); !data.empty()) return data;
++#endif
+ #ifdef _WIN32
+     // Authoritative: the real image path, regardless of how we were invoked.
+     {

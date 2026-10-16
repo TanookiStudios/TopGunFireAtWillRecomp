@@ -42,7 +42,12 @@ overlay_cache = true
 [video]
 renderer = "opengl"
 aspect_ratio = "4:3"
+# House style: sharp pixels by default ("Smooth pixels (blurry)" is off).
+antialiasing = false
 
 [controller]
 default_mode = "digital"
+# One-player game: player 1 is the first controller AND the keyboard (the
+# runtime keeps keyboard binds live alongside a pad), so either just works.
+p1_device = "auto"
 

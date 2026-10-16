@@ -1,0 +1,53 @@
+diff --git a/runtime/include/gpu_gl_renderer.h b/runtime/include/gpu_gl_renderer.h
+index 4a27bdb2..14929019 100644
+--- a/runtime/include/gpu_gl_renderer.h
++++ b/runtime/include/gpu_gl_renderer.h
+@@ -304,6 +304,11 @@ int  gl_renderer_get_scanlines(float *strength);
+  * clamped to a safe range. Safe to call before GL context creation. */
+ void  gl_renderer_set_post_gamma(float gamma);
+ float gl_renderer_get_post_gamma(void);
++/* Integer scaling: the picture's height snaps to a whole multiple of 240
++ * lines (4:3 kept), so every PlayStation line covers the same number of
++ * window rows. Falls back to the plain fit when the window is under 240 rows. */
++void  gl_renderer_set_integer_scale(int on);
++int   gl_renderer_get_integer_scale(void);
+ 
+ /* Select full native-wide mirror rendering instead of the centre-splice fast
+  * path. Textured edge expansion needs the complete mirror surface. */
+diff --git a/runtime/src/gpu_gl_renderer.c b/runtime/src/gpu_gl_renderer.c
+index 037b6c6b..70f6b40d 100644
+--- a/runtime/src/gpu_gl_renderer.c
++++ b/runtime/src/gpu_gl_renderer.c
+@@ -5847,11 +5847,31 @@ float gl_renderer_get_post_gamma(void) {
+     return s_present_gamma;
+ }
+ 
+-/* Letterbox: largest num:den rect centered in the drawable. */
++static int s_integer_scale = 1;
++
++void gl_renderer_set_integer_scale(int on) {
++    GL_RT_SYNC("set_integer_scale");
++    on = on ? 1 : 0;
++    if (on == s_integer_scale) return;
++    s_integer_scale = on;
++    for (int i = 0; i < PRES_ROWS; i++) s_present_dirty[i] = ~0ull;
++    s_last_present_path = -1;
++    s_force_present_remaining = 2;
++    hold_invalidate();
++}
++
++int gl_renderer_get_integer_scale(void) { return s_integer_scale; }
++
++/* Letterbox: largest num:den rect centered in the drawable (with integer
++ * scaling, the largest whose height is a whole multiple of 240 lines). */
+ static void letterbox_rect_aspect(int ww, int wh, int num, int den,
+                                   int *x, int *y, int *w, int *h) {
+     int dw = ww, dh = (ww * den) / num;
+     if (dh > wh) { dh = wh; dw = (wh * num) / den; }
++    if (s_integer_scale && dh >= 240) {
++        dh = (dh / 240) * 240;
++        dw = (dh * num) / den;
++    }
+     *x = (ww - dw) / 2;
+     *y = (wh - dh) / 2;
+     *w = dw; *h = dh;
