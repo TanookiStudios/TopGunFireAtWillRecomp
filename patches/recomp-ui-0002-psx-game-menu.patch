@@ -1,0 +1,202 @@
+diff --git a/src/common/recomp_runtime_settings.c b/src/common/recomp_runtime_settings.c
+index 0e8d926..f3726d7 100644
+--- a/src/common/recomp_runtime_settings.c
++++ b/src/common/recomp_runtime_settings.c
+@@ -191,8 +191,8 @@ RecompRuntimeUi *recomp_runtime_ui_create_standard(
+         confirm_prompts[count - 1] = "Press again for the launcher";
+     }
+     if (has(f, RECOMP_RUNTIME_UI_STANDARD_QUIT)) {
+-        add_item(items, &count, RECOMP_RUNTIME_UI_KEY_QUIT, "System", "Quit game",
+-                 "Close the game. Press twice.", RECOMP_RUNTIME_UI_ACTION,
++        add_item(items, &count, RECOMP_RUNTIME_UI_KEY_QUIT, "System", "Close game",
++                 "Closes the game window. Press twice to confirm.", RECOMP_RUNTIME_UI_ACTION,
+                  0, 0, 0, NULL, 0, NULL);
+         confirm_prompts[count - 1] = "Press again to quit";
+     }
+diff --git a/src/consoles/psx/psx_menu_provider.cpp b/src/consoles/psx/psx_menu_provider.cpp
+index f5be1a8..b1b1066 100644
+--- a/src/consoles/psx/psx_menu_provider.cpp
++++ b/src/consoles/psx/psx_menu_provider.cpp
+@@ -18,6 +18,7 @@
+ 
+ #include <cstdio>
+ #include <cstring>
++#include <vector>
+ 
+ namespace rui_psx {
+ namespace {
+@@ -51,7 +52,28 @@ RecompRuntimeUiItem g_extra[] = {
+      RECOMP_RUNTIME_UI_ACTION, 0, 0, 0, nullptr, 0, nullptr},
+ };
+ 
++// The title's own rows (RecompLauncherCGameInfo menu_items + game_items) and
++// their callbacks. With them the menu is the title's game menu: it attaches
++// for single-disc titles too, opens on Esc / Guide, and hands the System and
++// Audio rows the title implements (volume, state slots, reset) to the title.
++const RecompRuntimeUiCallbacks *g_title_cb = nullptr;
++const char *g_title_name = nullptr;
++std::vector<RecompRuntimeUiItem> g_items;
++bool title_mode() { return g_title_cb != nullptr; }
++bool title_row(const RecompRuntimeUiItem *item);
++
+ bool is(const RecompRuntimeUiItem *item, const char *key) { return item && item->key && !std::strcmp(item->key, key); }
++bool title_row(const RecompRuntimeUiItem *item) {
++    if (!g_title_cb || !item || !item->key) return false;
++    static const char *const kTitleStandard[] = {
++        RECOMP_RUNTIME_UI_KEY_VOLUME, RECOMP_RUNTIME_UI_KEY_STATE_SLOT, RECOMP_RUNTIME_UI_KEY_SAVE_STATE,
++        RECOMP_RUNTIME_UI_KEY_LOAD_STATE, RECOMP_RUNTIME_UI_KEY_RESET,
++    };
++    for (const char *k : kTitleStandard) if (!std::strcmp(item->key, k)) return true;
++    for (const auto &it : g_items) if (it.key && !std::strcmp(it.key, item->key) &&
++                                       std::strncmp(it.key, "graphics.", 9) && std::strncmp(it.key, "media.", 6)) return true;
++    return false;
++}
+ int disc_count() { return g_host && g_host->disc_count ? g_host->disc_count() : 0; }
+ bool netplay() { return g_host && g_host->netplay_active && g_host->netplay_active(); }
+ 
+@@ -79,6 +101,7 @@ int cb_get(void *, const RecompRuntimeUiItem *item, int *out) {
+     else if (is(item, "graphics.render_thread")) *out = g_video.render_thread;
+     else if (is(item, RECOMP_RUNTIME_UI_KEY_PAUSE_IN_MENU)) *out = g_pause_in_menu ? 1 : 0;
+     else if (is(item, "media.disc")) *out = g_disc;
++    else if (title_row(item) && g_title_cb->get_value) return g_title_cb->get_value(g_title_cb->context, item, out);
+     else return 0;
+     return 1;
+ }
+@@ -101,6 +124,8 @@ int cb_set(void *, const RecompRuntimeUiItem *item, int v) {
+         if (v < 1 || v > disc_count()) return 0;
+         g_disc = v;
+         return 1;
++    } else if (title_row(item)) {
++        return g_title_cb->set_value ? g_title_cb->set_value(g_title_cb->context, item, v) : 0;
+     } else {
+         return 0;
+     }
+@@ -127,12 +152,15 @@ int cb_action(void *, const RecompRuntimeUiItem *item) {
+             return 0;
+         }
+         close_menu();  // the lid cycle runs in the game
++    } else if (title_row(item) && g_title_cb->run_action) {
++        return g_title_cb->run_action(g_title_cb->context, item);
+     }
+     return 0;  // keep our own status instead of the generic "Done"
+ }
+ 
+ int cb_enabled(void *, const RecompRuntimeUiItem *item) {
+     if (item && item->key && !std::strncmp(item->key, "media.", 6)) return disc_count() > 1 && !netplay();
++    if (title_row(item) && g_title_cb->is_enabled) return g_title_cb->is_enabled(g_title_cb->context, item);
+     return 1;
+ }
+ 
+@@ -170,7 +198,22 @@ int p_attach(void *, void *, void *, const PsxMenuHost *host) {
+     // Chosen by default (the title chose no provider): keep the title's
+     // presentation -- recomp-ui's game menu is for multi-disc titles.
+ #if defined(PSX_MENU_HOST_HAS_DEFAULT_SELECTION)
+-    if (host->default_selection && (!host->disc_count || host->disc_count() < 2)) return 0;
++    g_title_cb = nullptr;
++    g_title_name = nullptr;
++    g_items.clear();
++#if defined(RECOMP_LAUNCHER_HAS_GAME_AND_ABOUT_PAGES)
++    if (host->launcher_game_info) {
++        RecompLauncherCGameInfo gi{};
++        host->launcher_game_info(&gi);
++        if (gi.game_callbacks && (gi.game_item_count || gi.menu_item_count)) {
++            g_title_cb = gi.game_callbacks;
++            g_title_name = gi.name;
++            for (size_t i = 0; gi.menu_items && i < gi.menu_item_count; ++i) g_items.push_back(gi.menu_items[i]);
++            for (size_t i = 0; gi.game_items && i < gi.game_item_count; ++i) g_items.push_back(gi.game_items[i]);
++        }
++    }
++#endif
++    if (host->default_selection && !title_mode() && (!host->disc_count || host->disc_count() < 2)) return 0;
+ #endif
+     g_host = host;
+     if (g_ui) recomp_runtime_ui_destroy(g_ui);
+@@ -195,8 +238,8 @@ int p_attach(void *, void *, void *, const PsxMenuHost *host) {
+     g_extra[0].minimum = 0;
+     g_extra[0].maximum = (int)g_extra[0].choice_count - 1;
+     RecompRuntimeUiStandardConfig cfg{};
+-    cfg.menu.title = "Game menu";
+-    cfg.menu.subtitle = g_subtitle;
++    cfg.menu.title = title_mode() && g_title_name ? g_title_name : "Game menu";
++    cfg.menu.subtitle = title_mode() && !g_subtitle[0] ? "PLAYSTATION" : g_subtitle;
+     cfg.menu.theme = "psx";
+     cfg.menu.accept_label = "Enter / Cross";
+     cfg.menu.back_label = "Esc / Circle";
+@@ -211,6 +254,19 @@ int p_attach(void *, void *, void *, const PsxMenuHost *host) {
+                    RECOMP_RUNTIME_UI_STANDARD_QUIT;
+     cfg.extra_items = g_extra;
+     cfg.extra_item_count = discs > 1 ? 4 : 2;
++    if (title_mode()) {
++        // Same rows as the other Tanooki ports: the title answers volume,
++        // state slots and reset; no pause or launcher rows.
++        cfg.features = RECOMP_RUNTIME_UI_STANDARD_FULLSCREEN | RECOMP_RUNTIME_UI_STANDARD_LINEAR_FILTER |
++                       RECOMP_RUNTIME_UI_STANDARD_FMV_FILTER | RECOMP_RUNTIME_UI_STANDARD_VOLUME |
++                       RECOMP_RUNTIME_UI_STANDARD_RESUME | RECOMP_RUNTIME_UI_STANDARD_SAVE_STATE |
++                       RECOMP_RUNTIME_UI_STANDARD_LOAD_STATE | RECOMP_RUNTIME_UI_STANDARD_STATE_SLOT |
++                       RECOMP_RUNTIME_UI_STANDARD_RESET | RECOMP_RUNTIME_UI_STANDARD_QUIT;
++        cfg.state_slot_count = 10;
++        g_items.insert(g_items.begin(), g_extra, g_extra + cfg.extra_item_count);
++        cfg.extra_items = g_items.data();
++        cfg.extra_item_count = g_items.size();
++    }
+     g_ui = recomp_runtime_ui_create_standard(&cfg);
+     if (!g_ui) { g_host = nullptr; return 0; }
+     return 1;
+@@ -251,6 +307,7 @@ std::mutex &lock() {
+     return m;
+ }
+ RecompRuntimeUi *model() { return g_ui; }
++bool title_menu() { return title_mode(); }
+ void input(int in) {
+     if (!g_ui) return;
+     if (in == RECOMP_RUNTIME_UI_INPUT_TOGGLE) {
+diff --git a/src/consoles/psx/psx_menu_provider_imgui.cpp b/src/consoles/psx/psx_menu_provider_imgui.cpp
+index cbcf214..e9227fb 100644
+--- a/src/consoles/psx/psx_menu_provider_imgui.cpp
++++ b/src/consoles/psx/psx_menu_provider_imgui.cpp
+@@ -60,7 +60,7 @@ int sdl_event(const void *p) {
+     if (e.type == SDL_EVENT_KEY_DOWN) {
+         const SDL_Keycode k = e.key.key;
+         const bool ctrl = (e.key.mod & SDL_KMOD_CTRL) != 0;
+-        if (!e.key.repeat && (k == SDLK_F10 || (ctrl && k == SDLK_L))) {
++        if (!e.key.repeat && (k == SDLK_F10 || (ctrl && k == SDLK_L) || (!open && title_menu() && k == SDLK_ESCAPE))) {
+             input(RECOMP_RUNTIME_UI_INPUT_TOGGLE);
+             return 1;
+         }
+@@ -74,7 +74,8 @@ int sdl_event(const void *p) {
+         const bool down = e.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN;
+         const unsigned before = g_pad_held;
+         g_pad_held = down ? (g_pad_held | bit) : (g_pad_held & ~bit);
+-        if (down && (g_pad_held & (kBack | kL3)) == (kBack | kL3) && (before & (kBack | kL3)) != (kBack | kL3)) {
++        if ((down && (g_pad_held & (kBack | kL3)) == (kBack | kL3) && (before & (kBack | kL3)) != (kBack | kL3)) ||
++            (down && title_menu() && e.gbutton.button == SDL_GAMEPAD_BUTTON_GUIDE)) {
+             input(RECOMP_RUNTIME_UI_INPUT_TOGGLE);
+             return 1;
+         }
+diff --git a/src/consoles/psx/psx_menu_provider_internal.h b/src/consoles/psx/psx_menu_provider_internal.h
+index 9b06bb4..60d5a49 100644
+--- a/src/consoles/psx/psx_menu_provider_internal.h
++++ b/src/consoles/psx/psx_menu_provider_internal.h
+@@ -13,6 +13,7 @@ namespace rui_psx {
+ 
+ std::mutex &lock();
+ RecompRuntimeUi *model();           // NULL when not attached
++bool title_menu();                  // a title's game menu (opens on Esc / Guide)
+ void input(int recomp_runtime_ui_input);  // caller holds lock()
+ 
+ // Presentation side (psx_menu_provider_imgui.cpp; tests stub these).
+diff --git a/src/recomp_launcher.h b/src/recomp_launcher.h
+index 2ddbe9b..876b75f 100644
+--- a/src/recomp_launcher.h
++++ b/src/recomp_launcher.h
+@@ -2392,6 +2392,10 @@ typedef struct RecompLauncherCGameInfo {
+     const char* about_image;
+     const char* about_link_url;
+     const char* about_link_label;
++    /* menu_items: rows only the in-game menu shows (System, Controls ...),
++     * placed before game_items there and answered by game_callbacks. */
++    const struct RecompRuntimeUiItem*      menu_items;
++    size_t                                 menu_item_count;
+ } RecompLauncherCGameInfo;
+ 
+ /* RecompLauncherCGameInfo carries texture_filter_labels / _values. */

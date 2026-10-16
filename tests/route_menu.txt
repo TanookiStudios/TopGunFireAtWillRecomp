@@ -1,0 +1,38 @@
+# Hidden-window run: open the Esc menu on the title screen and page through it.
+wait 600
+hold start 10
+wait 300
+hold start 10
+wait 300
+pshot 00_game
+key Escape
+sleep 510
+pshot 01_menu
+key Return
+sleep 340
+pshot 02_display
+key Escape
+key Down
+key Down
+key Return
+sleep 340
+pshot 03_audio
+key Escape
+key Down
+key Return
+sleep 340
+pshot 04_system
+key Escape
+key Down
+key Return
+sleep 340
+pshot 05_controls
+key Escape
+key Down
+key Return
+sleep 340
+pshot 06_cheats
+key Escape
+key Escape
+sleep 510
+pshot 07_closed

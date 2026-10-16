@@ -1,9 +1,9 @@
 diff --git a/runtime/include/psx_title_host.h b/runtime/include/psx_title_host.h
 new file mode 100644
-index 00000000..4e98a42e
+index 00000000..4743beb9
 --- /dev/null
 +++ b/runtime/include/psx_title_host.h
-@@ -0,0 +1,23 @@
+@@ -0,0 +1,27 @@
 +/* psx_title_host.h -- a title's hook into the pre-game launcher and the
 + * in-game menu's launcher info.
 + *
@@ -23,27 +23,32 @@ index 00000000..4e98a42e
 +typedef void (*PsxTitleLauncherHook)(struct RecompLauncherCGameInfo* gi);
 +void psx_title_set_launcher_hook(PsxTitleLauncherHook hook);
 +
++/* Reset game: end this session and start the same disc again from power-on,
++ * straight into the game (no launcher). In-game menu builds only. */
++void psx_title_request_reset(void);
++
 +#ifdef __cplusplus
 +}
 +#endif
 +#endif
 diff --git a/runtime/src/main.cpp b/runtime/src/main.cpp
-index 4a66663d..dd2a0d4a 100644
+index 4a66663d..78137a32 100644
 --- a/runtime/src/main.cpp
 +++ b/runtime/src/main.cpp
-@@ -135,6 +135,11 @@ extern "C" uint32_t g_guest_last_store_addr, g_guest_last_store_val;
+@@ -135,6 +135,12 @@ extern "C" uint32_t g_guest_last_store_addr, g_guest_last_store_val;
  #include "psx_keybinds.h"
  #include "host_overlay.h"
  #include "psx_menu_host.h"     /* optional in-game menu hooks (P1 pause, ...) */    /* configurable keyboard->DualShock keybinds (keybinds.ini) */
 +#include "psx_title_host.h"     /* a title's launcher-info hook (Game / About pages) */
 +static PsxTitleLauncherHook g_psx_title_launcher_hook = nullptr;
++static int g_psx_title_reset = 0;   /* relaunch straight into the game */
 +extern "C" void psx_title_set_launcher_hook(PsxTitleLauncherHook hook) {
 +    g_psx_title_launcher_hook = hook;
 +}
  #include "psx_window_icon.h"
  
  #if defined(RECOMP_LAUNCHER)
-@@ -16507,6 +16512,7 @@ namespace {
+@@ -16507,6 +16513,7 @@ namespace {
  #else
          gi->resume_netplay_endpoint = nullptr;
  #endif
@@ -51,7 +56,19 @@ index 4a66663d..dd2a0d4a 100644
      }
  }  // namespace
  #endif
-@@ -16744,6 +16750,7 @@ void mh_launcher_game_info(RecompLauncherCGameInfo* out) {
+@@ -16634,6 +16641,11 @@ void mh_reload_bindings(void) { g_ovl_reload_binds = 1; }
+ void mh_request_exit(int how) {
+     g_ovl_exit = (how < PSX_MENU_EXIT_QUIT || how > PSX_MENU_EXIT_RELAUNCH ? PSX_MENU_EXIT_QUIT : how) + 1;
+ }
++/* Reset game: a fresh power-on of the same disc, without the launcher. */
++extern "C" void psx_title_request_reset(void) {
++    g_psx_title_reset = 1;
++    mh_request_exit(PSX_MENU_EXIT_RELAUNCH);
++}
+ /* Disc/tray: the runtime's production tray policy (psx_disc_tray.h, #652)
+  * when the build has it -- the same lid cycle, netplay refusal, persistence
+  * and event ring as the runtime's own disc menu and hotkeys -- else whatever
+@@ -16744,6 +16756,7 @@ void mh_launcher_game_info(RecompLauncherCGameInfo* out) {
      gi.netplay_supported = g_lnch_netplay_available ? 1 : 0;
      gi.netplay = g_lnch_netplay_available ? &g_lnch_netplay_callbacks : nullptr;
  #endif
@@ -59,3 +76,33 @@ index 4a66663d..dd2a0d4a 100644
  }
  #endif  /* RECOMP_LAUNCHER */
  
+@@ -16950,6 +16963,13 @@ static void host_pause_service(void) {
+             psx_crash_trace_set_exit_origin("menu_relaunch");
+             shutdown_runtime();
+             std::fprintf(stderr, "psxrecomp: relaunching\n");
++            /* Reset game: the new process skips the launcher (it inherits
++             * this; Windows rebuilds the command line, so not an argument). */
++#if defined(_WIN32)
++            if (g_psx_title_reset) _putenv_s("PSX_TITLE_RESET", "1");
++#else
++            if (g_psx_title_reset) setenv("PSX_TITLE_RESET", "1", 1);
++#endif
+             psx_relaunch_self(g_main_argc, g_main_argv);
+             std::fprintf(stderr, "psxrecomp: relaunch failed (%s)\n", std::strerror(errno));
+             std::exit(0); /* relaunch failed: leave rather than run torn down */
+@@ -17183,6 +17203,15 @@ int main(int argc, char** argv) {
+             }
+         }
+     }
++    /* Relaunched by Reset game: straight back into the game, once. */
++    if (const char *e = std::getenv("PSX_TITLE_RESET")) {
++        if (e[0] == '1') force_no_launcher = true;
++#if defined(_WIN32)
++        _putenv_s("PSX_TITLE_RESET", "");
++#else
++        unsetenv("PSX_TITLE_RESET");
++#endif
++    }
+     if (const char *e = std::getenv("PSX_HEADLESS")) {
+         if (e[0] && e[0] != '0') {
+             g_headless = 1;

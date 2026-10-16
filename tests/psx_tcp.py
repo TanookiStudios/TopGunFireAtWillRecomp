@@ -4,8 +4,10 @@
 
     tests/psx_tcp.py shots <out-dir> [seconds] [every-frames]
         boot the game headless and save a PNG every N frames
-    tests/psx_tcp.py route <route.txt> <out-dir>
+    tests/psx_tcp.py route <route.txt> <out-dir> [--window]
         boot, play a scripted route, save the shots it asks for
+        --window: a hidden real window (OpenGL, the Esc menu works) instead
+        of headless; still never shown on screen
 
 Route file: one step per line, '#' comments.
     hold <buttons> <frames>     buttons: up down left right cross circle square
@@ -13,6 +15,11 @@ Route file: one step per line, '#' comments.
     shot <name>                 PNG of the current frame
     ram <name>                  full 2 MB main RAM dump (for tools/ram_find.py)
     wait <frames>               same as 'hold none'
+    sleep <ms>                  wall-clock wait (the game is paused while a menu is open)
+    key <SDL key name>          press and release a keyboard key (Escape, Down, Return)
+    pshot <name>                PNG of the window as the player sees it, menu
+                                included (--window runs only)
+    poke <hex addr> <hex byte>  write one byte of main RAM
 """
 import json
 import os
@@ -30,9 +37,10 @@ BITS = {"select": 0, "l3": 1, "r3": 2, "start": 3, "up": 4, "right": 5, "down": 
 
 
 class Game:
-    def __init__(self, log_path):
+    def __init__(self, log_path, window=False):
         self.proc = subprocess.Popen(
-            [EXE, "--headless", "--debug-port", str(PORT), "--disc", "../disc/topgunfaw.cue"],
+            [EXE, "--hidden-window" if window else "--headless", "--debug-port", str(PORT),
+             "--disc", "../disc/topgunfaw.cue"],
             cwd=os.path.dirname(EXE), stdout=open(log_path, "w"), stderr=subprocess.STDOUT)
         for _ in range(300):
             try:
@@ -114,9 +122,22 @@ def shots(out, seconds=90, every=300):
         g.close()
 
 
-def route(path, out):
+def present_shot(g, path):
+    seq = g.cmd("present_shot_seq")["seq"]
+    g.cmd("present_shot", path=path)
+    for _ in range(500):
+        r = g.cmd("present_shot_seq")
+        if r["seq"] != seq:
+            if not r.get("wrote"):
+                raise RuntimeError(f"present_shot wrote nothing for {path}")
+            return
+        time.sleep(0.01)
+    raise RuntimeError("present_shot never completed")
+
+
+def route(path, out, window=False):
     os.makedirs(out, exist_ok=True)
-    g = Game(os.path.join(out, "run.log"))
+    g = Game(os.path.join(out, "run.log"), window)
     try:
         for line in open(path):
             w = line.split("#")[0].split()
@@ -128,6 +149,15 @@ def route(path, out):
                 g.wait_frames(n)
             elif w[0] == "shot":
                 g.cmd("screenshot", path=os.path.join(out, w[1] + ".png"))
+            elif w[0] == "sleep":
+                time.sleep(int(w[1]) / 1000)
+            elif w[0] == "key":
+                g.cmd("host_key", name=w[1])
+                time.sleep(0.15)
+            elif w[0] == "pshot":
+                present_shot(g, os.path.join(out, w[1] + ".png"))
+            elif w[0] == "poke":
+                g.cmd("write_ram", addr=w[1], val=w[2])
             elif w[0] == "ram":
                 data = bytes.fromhex(g.cmd("read_ram", addr="0x80000000", len=0x200000)["hex"])
                 open(os.path.join(out, w[1] + ".ram"), "wb").write(data)
@@ -142,7 +172,7 @@ if __name__ == "__main__":
     a = sys.argv[1:]
     if a[:1] == ["shots"] and len(a) >= 2:
         shots(a[1], *(int(x) for x in a[2:4]))
-    elif a[:1] == ["route"] and len(a) == 3:
-        route(a[1], a[2])
+    elif a[:1] == ["route"] and len(a) in (3, 4):
+        route(a[1], a[2], window=a[3:] == ["--window"])
     else:
         sys.exit(__doc__)

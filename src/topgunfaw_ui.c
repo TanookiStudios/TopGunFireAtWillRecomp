@@ -5,7 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "host_osd.h"           /* host_volume_get/set */
 #include "mod_plugins.h"        /* PSX_MOD_CONSTRUCTOR */
+#include "savestate.h"
 #include "psx_title_host.h"
 #include "recomp_launcher.h"
 #include "recomp_runtime_ui.h"
@@ -25,6 +27,24 @@ static const RecompRuntimeUiItem kRows[] = {
     ROW("tgfaw.cheat.hit",      "Cheats", "Can't be hit", "Your jet takes no damage."),
 };
 #define ROW_COUNT (sizeof kRows / sizeof kRows[0])
+
+/* Rows only the Esc menu shows: reminders of the keys (greyed out, they
+ * are information) -- the same list as the other Tanooki ports. */
+#define HINT(key, label, desc) { key, "Controls", label, desc, \
+                      RECOMP_RUNTIME_UI_ACTION, 0, 0, 0, NULL, 0, NULL }
+static const RecompRuntimeUiItem kMenuRows[] = {
+    HINT("tgfaw.hint.menu", "Open this menu",
+         "Esc on the keyboard. On a controller: the Guide / Home button, or Select + left stick click."),
+    HINT("tgfaw.hint.state", "Quick save and load", "F7 opens the save-state slots."),
+    HINT("tgfaw.hint.fullscreen", "Fullscreen", "Alt + Enter."),
+    HINT("tgfaw.hint.turbo", "Fast forward", "Hold Tab (F9 switches it on and off)."),
+    HINT("tgfaw.hint.volume", "Volume", "Keypad + and Keypad -."),
+};
+#define MENU_ROW_COUNT (sizeof kMenuRows / sizeof kMenuRows[0])
+
+static int s_slot = 1;   /* the Esc menu's state slot, 1-10 */
+
+static int is_key(const RecompRuntimeUiItem *it, const char *key) { return it && it->key && !strcmp(it->key, key); }
 
 static int *field(const RecompRuntimeUiItem *it) {
     static const struct { const char *key; size_t off; } map[] = {
@@ -68,6 +88,8 @@ static void load(void) {
 
 static int get_value(void *ctx, const RecompRuntimeUiItem *it, int *out) {
     (void)ctx;
+    if (is_key(it, RECOMP_RUNTIME_UI_KEY_VOLUME)) { *out = host_volume_get(); return 1; }
+    if (is_key(it, RECOMP_RUNTIME_UI_KEY_STATE_SLOT)) { *out = s_slot; return 1; }
     int *p = field(it);
     if (!p) return 0;
     *out = *p;
@@ -76,6 +98,8 @@ static int get_value(void *ctx, const RecompRuntimeUiItem *it, int *out) {
 
 static int set_value(void *ctx, const RecompRuntimeUiItem *it, int v) {
     (void)ctx;
+    if (is_key(it, RECOMP_RUNTIME_UI_KEY_VOLUME)) { host_volume_set(v); return 1; }
+    if (is_key(it, RECOMP_RUNTIME_UI_KEY_STATE_SLOT)) { s_slot = v < 1 ? 1 : (v > 10 ? 10 : v); return 1; }
     int *p = field(it);
     if (!p) return 0;
     *p = v ? 1 : 0;
@@ -86,8 +110,22 @@ static int set_value(void *ctx, const RecompRuntimeUiItem *it, int v) {
 
 static void save_cb(void *ctx) { (void)ctx; save(); }
 
+static int run_action(void *ctx, const RecompRuntimeUiItem *it) {
+    (void)ctx;
+    if (is_key(it, RECOMP_RUNTIME_UI_KEY_SAVE_STATE)) return savestate_request_save(s_slot - 1);
+    if (is_key(it, RECOMP_RUNTIME_UI_KEY_LOAD_STATE)) return savestate_request_load(s_slot - 1);
+    if (is_key(it, RECOMP_RUNTIME_UI_KEY_RESET)) { psx_title_request_reset(); return 1; }
+    return 0;
+}
+
+static int is_enabled(void *ctx, const RecompRuntimeUiItem *it) {
+    (void)ctx;
+    return !(it && it->key && !strncmp(it->key, "tgfaw.hint.", 11));   /* information rows */
+}
+
 static const RecompRuntimeUiCallbacks kCallbacks = {
-    .context = NULL, .get_value = get_value, .set_value = set_value, .save = save_cb,
+    .context = NULL, .get_value = get_value, .set_value = set_value,
+    .run_action = run_action, .is_enabled = is_enabled, .save = save_cb,
 };
 
 static const char kAbout[] =
@@ -114,6 +152,8 @@ static void launcher_info(RecompLauncherCGameInfo *gi) {
     gi->game_items = kRows;
     gi->game_item_count = ROW_COUNT;
     gi->game_callbacks = &kCallbacks;
+    gi->menu_items = kMenuRows;
+    gi->menu_item_count = MENU_ROW_COUNT;
     gi->about_text = kAbout;
     gi->about_image = "maddie-signature.png";   /* assets/signature.png, staged by CMakeLists.txt */
     gi->about_link_url = "https://tanookistudios.com/SupportMe";
