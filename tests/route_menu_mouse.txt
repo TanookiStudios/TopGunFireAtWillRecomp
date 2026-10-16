@@ -1,0 +1,13 @@
+# Esc menu by mouse (run with --window): open it, click the Cheats section,
+# click the Infinite missiles row. The second shot must show the Cheats page,
+# the third that row switched ON.
+include route_to_title.txt
+key Escape
+sleep 600
+pshot k0_menu
+click 195 366
+sleep 400
+pshot k1_cheats_clicked
+click 600 150
+sleep 400
+pshot k2_row_clicked

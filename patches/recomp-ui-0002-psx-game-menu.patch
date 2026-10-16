@@ -153,10 +153,42 @@ index f5be1a8..323cb37 100644
      if (!g_ui) return;
      if (in == RECOMP_RUNTIME_UI_INPUT_TOGGLE) {
 diff --git a/src/consoles/psx/psx_menu_provider_imgui.cpp b/src/consoles/psx/psx_menu_provider_imgui.cpp
-index cbcf214..e9227fb 100644
+index cbcf214..f32704a 100644
 --- a/src/consoles/psx/psx_menu_provider_imgui.cpp
 +++ b/src/consoles/psx/psx_menu_provider_imgui.cpp
-@@ -60,7 +60,7 @@ int sdl_event(const void *p) {
+@@ -21,6 +21,7 @@
+ 
+ #include <cfloat>
+ #include <cstdint>
++#include <vector>
+ 
+ namespace rui_psx {
+ namespace {
+@@ -28,6 +29,23 @@ namespace {
+ ImGuiContext *g_ctx = nullptr;   // GL thread
+ bool g_gl_ready = false;
+ uint64_t g_last_ns = 0;
++
++// Mouse, gathered on the main thread (sdl_event) and handed to ImGui on the
++// GL thread (draw), both under lock(). Positions are window points; draw
++// scales them to the framebuffer (Retina is 2x).
++struct MouseButton { int button; bool down; };
++float g_mouse_x = -FLT_MAX, g_mouse_y = -FLT_MAX;
++float g_win_w = 0, g_win_h = 0;
++float g_wheel = 0;
++std::vector<MouseButton> g_mouse_buttons;
++
++#if defined(LNG_SDL3)
++void note_window(SDL_WindowID id) {
++    int w = 0, h = 0;
++    if (SDL_Window *win = SDL_GetWindowFromID(id)) SDL_GetWindowSize(win, &w, &h);
++    if (w > 0 && h > 0) { g_win_w = (float)w; g_win_h = (float)h; }
++}
++#endif
+ unsigned g_pad_held = 0;         // main thread
+ 
+ #if defined(LNG_SDL3)
+@@ -60,7 +78,7 @@ int sdl_event(const void *p) {
      if (e.type == SDL_EVENT_KEY_DOWN) {
          const SDL_Keycode k = e.key.key;
          const bool ctrl = (e.key.mod & SDL_KMOD_CTRL) != 0;
@@ -165,7 +197,7 @@ index cbcf214..e9227fb 100644
              input(RECOMP_RUNTIME_UI_INPUT_TOGGLE);
              return 1;
          }
-@@ -74,7 +74,8 @@ int sdl_event(const void *p) {
+@@ -74,7 +92,8 @@ int sdl_event(const void *p) {
          const bool down = e.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN;
          const unsigned before = g_pad_held;
          g_pad_held = down ? (g_pad_held | bit) : (g_pad_held & ~bit);
@@ -175,6 +207,63 @@ index cbcf214..e9227fb 100644
              input(RECOMP_RUNTIME_UI_INPUT_TOGGLE);
              return 1;
          }
+@@ -96,8 +115,21 @@ int sdl_event(const void *p) {
+     }
+     if (!open) return 0;
+     switch (e.type) {  // the game sees no input while the menu is open
++    case SDL_EVENT_MOUSE_MOTION:
++        note_window(e.motion.windowID);
++        g_mouse_x = e.motion.x; g_mouse_y = e.motion.y;
++        return 1;
++    case SDL_EVENT_MOUSE_BUTTON_DOWN: case SDL_EVENT_MOUSE_BUTTON_UP: {
++        note_window(e.button.windowID);
++        g_mouse_x = e.button.x; g_mouse_y = e.button.y;
++        const int b = e.button.button == SDL_BUTTON_LEFT ? 0 : e.button.button == SDL_BUTTON_RIGHT ? 1 : 2;
++        g_mouse_buttons.push_back({b, e.type == SDL_EVENT_MOUSE_BUTTON_DOWN});
++        return 1;
++    }
++    case SDL_EVENT_MOUSE_WHEEL:
++        g_wheel += e.wheel.y;
++        return 1;
+     case SDL_EVENT_KEY_UP: case SDL_EVENT_TEXT_INPUT: case SDL_EVENT_GAMEPAD_AXIS_MOTION:
+-    case SDL_EVENT_MOUSE_BUTTON_DOWN: case SDL_EVENT_MOUSE_BUTTON_UP: case SDL_EVENT_MOUSE_WHEEL:
+         return 1;
+     default:
+         return 0;
+@@ -111,7 +143,12 @@ int sdl_event(const void *p) {
+ void draw(int w, int h) {
+     std::lock_guard<std::mutex> lk(lock());
+     RecompRuntimeUi *ui = model();
+-    if (!ui || !recomp_runtime_ui_is_open(ui) || w <= 0 || h <= 0) return;
++    if (!ui || !recomp_runtime_ui_is_open(ui) || w <= 0 || h <= 0) {
++        g_mouse_x = g_mouse_y = -FLT_MAX;
++        g_mouse_buttons.clear();
++        g_wheel = 0;
++        return;
++    }
+     ImGuiContext *prev = ImGui::GetCurrentContext();
+     if (!g_ctx) {
+         g_ctx = ImGui::CreateContext();
+@@ -124,9 +161,16 @@ void draw(int w, int h) {
+     ImGuiIO &io = ImGui::GetIO();
+     io.DisplaySize = ImVec2((float)w, (float)h);
+     io.DisplayFramebufferScale = ImVec2(1, 1);
+-    // Keyboard/controller driven: no mouse position, so hover never moves the
+-    // model's selection under the player.
+-    io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
++    // The mouse, from the window's points to the framebuffer's pixels. Until
++    // it moves over the menu it stays parked off-screen, so keyboard and
++    // controller navigation is never disturbed by a pointer at rest.
++    if (g_mouse_x != -FLT_MAX && g_win_w > 0 && g_win_h > 0)
++        io.AddMousePosEvent(g_mouse_x * (float)w / g_win_w, g_mouse_y * (float)h / g_win_h);
++    else
++        io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
++    for (const MouseButton &b : g_mouse_buttons) io.AddMouseButtonEvent(b.button, b.down);
++    g_mouse_buttons.clear();
++    if (g_wheel != 0) { io.AddMouseWheelEvent(0, g_wheel); g_wheel = 0; }
+     const uint64_t now = SDL_GetPerformanceCounter();
+     const uint64_t frequency = SDL_GetPerformanceFrequency();
+     io.DeltaTime = g_last_ns && now > g_last_ns && frequency
 diff --git a/src/consoles/psx/psx_menu_provider_internal.h b/src/consoles/psx/psx_menu_provider_internal.h
 index 9b06bb4..60d5a49 100644
 --- a/src/consoles/psx/psx_menu_provider_internal.h

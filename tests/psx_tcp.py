@@ -17,6 +17,7 @@ Route file: one step per line, '#' comments.
     wait <frames>               same as 'hold none'
     sleep <ms>                  wall-clock wait (the game is paused while a menu is open)
     key <SDL key name>          press and release a keyboard key (Escape, Down, Return)
+    click <x> <y>               a left mouse click at a window point (--window runs)
     pshot <name>                PNG of the window as the player sees it, menu
                                 included (--window runs only)
     poke <hex addr> <hex byte>  write one byte of main RAM
@@ -228,6 +229,9 @@ def do_action(g, w, out):
     elif w[0] == "key":
         g.cmd("host_key", name=w[1])
         time.sleep(0.15)
+    elif w[0] == "click":
+        g.cmd("host_mouse", x=int(w[1]), y=int(w[2]))
+        time.sleep(0.3)
     elif w[0] == "pshot":
         present_shot(g, os.path.join(out, w[1] + ".png"))
     else:
