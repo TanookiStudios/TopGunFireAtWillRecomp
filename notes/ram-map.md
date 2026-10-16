@@ -44,8 +44,16 @@ power-on; a new game or mission raising a count passes through.
   within four minutes of hands-off flight), so tests use the abort.
 - The disc's movie folders name the theatres: Miramar (training), Libya,
   Korea, Cuba.
+- Memory card saves work: `tests/route_memcard_save.txt` (debrief, Save Game,
+  Memory Card, initials) shows "GAME SAVED", and the card file then holds
+  the entry `BASLUS-00032AAA01`.
 - The debrief menu offers Continue / Abort Game / Save Game / Options; the
   title's Restore Game offers Memory Card or Password.
+
+## Cheats not made
+
+- **Can't be hit**: the damage values were not found (below). Infinite lives
+  covers being shot down.
 
 ## Dead ends (kept so nobody repeats them)
 
@@ -54,8 +62,12 @@ power-on; a new game or mission raising a count passes through.
   thousands of bytes (scenery streaming in at the same moment), and the
   values that changed identically at two separate hits were stack and
   pointer data. Poked without effect: `0x8019F9D0`, `0x801CCF64`,
-  `0x8019F9C8`, `0x801CCF5C`, `0x801CFF14` (0x40 and 0). Next approach: find
-  the code that colours the silhouette, not the data.
+  `0x8019F9C8`, `0x801CCF5C`, `0x801CFF14` (0x40 and 0). A write trace over
+  0x80180000-0x801F0000 around a caught hit (`TGFAW_WTRACE` in
+  `tests/catch_event.py`) showed three values dropping together at
+  0x80191BC8/BD8/BDA, but that object is an explosion effect, not the jet.
+  Kill counters (`0x8019FE2C`/`32`) set to the goal do not end a mission.
+  Next approach: find the code that colours the HUD silhouette, not the data.
 - Routes replay input exactly (`input_route_start at_frame=30`), but enemy
   drones drift between runs after ~20 s of flight, and the mission's opening
   fly-by ends at slightly different times. Cheat checks therefore wait well

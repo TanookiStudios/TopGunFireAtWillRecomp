@@ -1,0 +1,31 @@
+# Memory card save: abort mission 1, then Save Game > Memory Card from the debrief.
+include route_to_mission1.txt
+wait 400
+hold start 6
+wait 60
+hold down 6
+wait 30
+hold cross 6
+wait 60
+hold left 6
+wait 30
+hold cross 6
+wait 1800
+shot m0_debrief
+hold down 6
+wait 30
+hold down 6
+wait 30
+shot m1_on_save
+hold cross 6
+wait 200
+shot m2_save_menu
+hold cross 6
+wait 300
+shot m3
+hold cross 6
+wait 300
+shot m4
+hold cross 6
+wait 300
+shot m5
