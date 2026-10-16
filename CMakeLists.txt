@@ -50,8 +50,6 @@ psxrecomp_add_game_runtime(psx-runtime
     MAX_PLAYERS 1
     # LAUNCHER_BOXART "${CMAKE_CURRENT_SOURCE_DIR}/launcher_assets/img/boxart.tga"
     APP_ICON "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon/topgunfaw.ico"
-    # Launcher header mark: the port's own icon (same as every Tanooki port).
-    LAUNCHER_BRAND "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon/topgunfaw-256.png"
     # Committed game C (psxrecomp_cli.py generate; git add generated). Release
     # CI configures with -DPSXRECOMP_REQUIRE_GAME_C=ON so a checkout without
     # it fails instead of building a setup host.
@@ -72,3 +70,24 @@ foreach(_PSX_RUNTIME_CONFIG game.toml game_options.toml)
             VERBATIM)
     endif()
 endforeach()
+
+# The port's own code: Game page rows, About page, cheats, audio switches.
+target_sources(psx-runtime PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/topgunfaw_ui.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/topgunfaw_extras.c)
+target_include_directories(psx-runtime PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+# About page signature and the controller database (pads work with no setup).
+add_custom_command(TARGET psx-runtime POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:psx-runtime>/assets/img"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/signature.png"
+        "$<TARGET_FILE_DIR:psx-runtime>/assets/img/maddie-signature.png"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/controllers/gamecontrollerdb.txt"
+        "$<TARGET_FILE_DIR:psx-runtime>/assets/gamecontrollerdb.txt"
+    # Launcher header mark: the port's own icon, over the PS1 profile's mark.
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon/topgunfaw-brand.tga"
+        "$<TARGET_FILE_DIR:psx-runtime>/assets/img/brand_psx.tga"
+    VERBATIM)

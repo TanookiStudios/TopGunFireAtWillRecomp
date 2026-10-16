@@ -1,0 +1,61 @@
+diff --git a/runtime/include/psx_title_host.h b/runtime/include/psx_title_host.h
+new file mode 100644
+index 00000000..4e98a42e
+--- /dev/null
++++ b/runtime/include/psx_title_host.h
+@@ -0,0 +1,23 @@
++/* psx_title_host.h -- a title's hook into the pre-game launcher and the
++ * in-game menu's launcher info.
++ *
++ * The runtime fills RecompLauncherCGameInfo itself, then calls the hook (if a
++ * title registered one) so the title can add what only it knows: its own
++ * option rows (game_items / game_callbacks), an About page (about_*), or turn
++ * a page off (mods = NULL). Register from a static constructor
++ * (PSX_MOD_CONSTRUCTOR in mod_plugins.h) so it is set before main(). */
++#ifndef PSX_TITLE_HOST_H
++#define PSX_TITLE_HOST_H
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++struct RecompLauncherCGameInfo;
++typedef void (*PsxTitleLauncherHook)(struct RecompLauncherCGameInfo* gi);
++void psx_title_set_launcher_hook(PsxTitleLauncherHook hook);
++
++#ifdef __cplusplus
++}
++#endif
++#endif
+diff --git a/runtime/src/main.cpp b/runtime/src/main.cpp
+index 4a66663d..dd2a0d4a 100644
+--- a/runtime/src/main.cpp
++++ b/runtime/src/main.cpp
+@@ -135,6 +135,11 @@ extern "C" uint32_t g_guest_last_store_addr, g_guest_last_store_val;
+ #include "psx_keybinds.h"
+ #include "host_overlay.h"
+ #include "psx_menu_host.h"     /* optional in-game menu hooks (P1 pause, ...) */    /* configurable keyboard->DualShock keybinds (keybinds.ini) */
++#include "psx_title_host.h"     /* a title's launcher-info hook (Game / About pages) */
++static PsxTitleLauncherHook g_psx_title_launcher_hook = nullptr;
++extern "C" void psx_title_set_launcher_hook(PsxTitleLauncherHook hook) {
++    g_psx_title_launcher_hook = hook;
++}
+ #include "psx_window_icon.h"
+ 
+ #if defined(RECOMP_LAUNCHER)
+@@ -16507,6 +16512,7 @@ namespace {
+ #else
+         gi->resume_netplay_endpoint = nullptr;
+ #endif
++        if (g_psx_title_launcher_hook) g_psx_title_launcher_hook(gi);
+     }
+ }  // namespace
+ #endif
+@@ -16744,6 +16750,7 @@ void mh_launcher_game_info(RecompLauncherCGameInfo* out) {
+     gi.netplay_supported = g_lnch_netplay_available ? 1 : 0;
+     gi.netplay = g_lnch_netplay_available ? &g_lnch_netplay_callbacks : nullptr;
+ #endif
++    if (g_psx_title_launcher_hook) g_psx_title_launcher_hook(&gi);
+ }
+ #endif  /* RECOMP_LAUNCHER */
+ 

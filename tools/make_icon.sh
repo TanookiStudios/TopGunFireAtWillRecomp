@@ -24,6 +24,9 @@ cp "$TMP/full-256.png" "$OUT/$NAME-256.png"
 # The engine sets the window icon from psxrecomp.png beside the .ico.
 cp "$TMP/full-256.png" "$OUT/psxrecomp.png"
 
+# Launcher header mark (the PS1 launcher reads a 32-bit TGA).
+sips -s format tga "$TMP/full-256.png" --out "$OUT/$NAME-brand.tga" >/dev/null
+
 # Pack the seven sizes into one .ico (PNG-compressed entries).
 python3 - "$TMP" "$OUT/$NAME.ico" <<'PY'
 import struct, sys
