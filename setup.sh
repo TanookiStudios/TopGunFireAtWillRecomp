@@ -15,8 +15,9 @@ fetch() {  # fetch <url> <dir> <commit>
 }
 fetch https://github.com/mstan/psxrecomp.git psxrecomp "$PSXRECOMP_COMMIT"
 fetch https://github.com/RetroPortingToolKit/recomp-ui.git recomp-ui "$RECOMP_UI_COMMIT"
-# The engine's own tools look for psxrecomp/ at the project root.
+# The engine's own tools look for psxrecomp/ and recomp-ui/ at the project root.
 [ -e psxrecomp ] || ln -s vendor/psxrecomp psxrecomp
+[ -e recomp-ui ] || ln -s vendor/recomp-ui recomp-ui
 apply() {  # apply <dir> <patch>
     if git -C "vendor/$1" apply --check "../../$2" 2>/dev/null; then
         git -C "vendor/$1" apply "../../$2" && echo "applied $(basename "$2")"

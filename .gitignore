@@ -3,6 +3,7 @@
 # memory cards and the engine checkouts (vendor/, fetched by setup.sh).
 /vendor/
 /psxrecomp
+/recomp-ui
 /generated/
 /disc/
 disc.cfg
